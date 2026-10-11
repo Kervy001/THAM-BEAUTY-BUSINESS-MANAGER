@@ -1,11 +1,8 @@
-// ⚠️ ÉTAPE OBLIGATOIRE : remplacez ces valeurs par celles de VOTRE projet Firebase
-// (Console Firebase → Paramètres du projet → Vos applications → Application Web → "firebaseConfig").
-// Ces valeurs ne sont pas secrètes : la sécurité vient des règles Firestore (fichier firestore.rules).
-export const firebaseConfig = {
-  apiKey: 'REMPLACER',
-  authDomain: 'REMPLACER.firebaseapp.com',
-  projectId: 'REMPLACER',
-  storageBucket: 'REMPLACER.appspot.com',
-  messagingSenderId: 'REMPLACER',
-  appId: 'REMPLACER'
-}
+const firebaseConfig = {
+  apiKey: "AIzaSyAtuQhhVSUkdFlH4RKwY2A9wVAIKqNZSKc",
+  authDomain: "tham-beauty.firebaseapp.com",
+  projectId: "tham-beauty",
+  storageBucket: "tham-beauty.firebasestorage.app",
+  messagingSenderId: "365051937955",
+  appId: "1:365051937955:web:dda72d06c6f5363999ab16"
+};
