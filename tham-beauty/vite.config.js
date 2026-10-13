@@ -9,25 +9,29 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icon.svg'],
+      includeAssets: ['favicon.png', 'apple-touch-icon.png', 'logo.png'],
       manifest: {
         name: 'THAM BEAUTY BUSINESS MANAGER',
         short_name: 'THAM BEAUTY',
         description: 'Gestion commerciale : projets, stock, ventes, dépenses, USD/HTG',
-        theme_color: '#111111',
-        background_color: '#111111',
+        theme_color: '#0b0b0d',
+        background_color: '#0b0b0d',
         display: 'standalone',
         orientation: 'portrait',
         start_url: './',
         scope: './',
         lang: 'fr',
         icons: [
-          { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },
-          { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
+          { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: 'icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
         ]
       },
-      workbox: { navigateFallback: 'index.html', globPatterns: ['**/*.{js,css,html,svg,png}'] }
+      workbox: {
+        navigateFallback: 'index.html',
+        globPatterns: ['**/*.{js,css,html,svg,png,jpg,webp,woff,woff2}'],
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024
+      }
     })
   ]
 })
