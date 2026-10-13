@@ -7,6 +7,8 @@ service cloud.firestore {
     function active() { return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && me().active == true; }
     function isAdmin() { return active() && me().role == 'admin'; }
     function can(p) { return isAdmin() || (active() && (p in me().perms)); }
+    // Seul l'administrateur peut mettre un élément à la corbeille / le restaurer (champ deletedAt)
+    function trashUntouched() { return request.resource.data.get('deletedAt', null) == resource.data.get('deletedAt', null) || isAdmin(); }
     function notInitialized() { return !exists(/databases/$(database)/documents/settings/main); }
 
     // Premier utilisateur = administrateur (uniquement tant que l'application n'est pas initialisée)
@@ -46,18 +48,20 @@ service cloud.firestore {
     }
     match /projects/{id} {
       allow read: if active();
-      allow create, update: if can('projects.write') || can('stock.write') || can('payments.write') || can('expenses.write');
-      allow delete: if false; // on archive, on ne supprime pas
+      allow create: if can('projects.write') || can('stock.write') || can('payments.write') || can('expenses.write');
+      allow update: if (can('projects.write') || can('stock.write') || can('payments.write') || can('expenses.write')) && trashUntouched();
+      allow delete: if isAdmin(); // suppression définitive : administrateur seulement (après 30 jours de corbeille)
     }
     match /expenses/{id} {
       allow read: if can('finance.read') || can('expenses.write') || can('projects.write');
       allow create, update: if can('expenses.write');
-      allow delete: if false; // annulation (statut) au lieu de suppression
+      allow delete: if isAdmin(); // uniquement lors de la suppression définitive d'un projet
     }
     match /sales/{id} {
       allow read: if active();
-      allow create, update: if can('sales.write') || can('sales.pay') || can('stock.write');
-      allow delete: if false;
+      allow create: if can('sales.write') || can('sales.pay') || can('stock.write');
+      allow update: if (can('sales.write') || can('sales.pay') || can('stock.write')) && trashUntouched();
+      allow delete: if isAdmin(); // suppression définitive : administrateur seulement
     }
     match /audit/{id} {
       allow read: if isAdmin() || can('finance.read');
