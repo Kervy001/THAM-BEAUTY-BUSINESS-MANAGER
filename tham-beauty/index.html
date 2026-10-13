@@ -3,13 +3,23 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="favicon.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <link rel="preload" as="image" href="logo-sm.webp" type="image/webp" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta name="theme-color" content="#0b0b0d" />
     <link rel="apple-touch-icon" href="apple-touch-icon.png" />
     <title>THAM BEAUTY BUSINESS MANAGER</title>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Écran de démarrage instantané (affiché avant même le chargement du JavaScript) -->
+      <div style="min-height:100vh;display:grid;place-items:center;background:#0b0b0d;text-align:center;font-family:system-ui,sans-serif">
+        <div>
+          <img src="logo-sm.webp" width="96" height="96" alt="" style="border-radius:50%;animation:tb-pulse 1.4s ease-in-out infinite" />
+          <div style="margin-top:14px;font-size:13px;color:#d9b45f;letter-spacing:.05em">Chargement…</div>
+        </div>
+      </div>
+      <style>@keyframes tb-pulse{0%,100%{opacity:1}50%{opacity:.55}}</style>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
