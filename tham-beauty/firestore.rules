@@ -33,6 +33,17 @@ service cloud.firestore {
       allow create: if active() && request.resource.data.type == 'sale';
       allow update, delete: if isAdmin();
     }
+    // Inventaires physiques et clôtures de caisse
+    match /inventories/{id} {
+      allow read: if active();
+      allow create, update: if can('stock.write');
+      allow delete: if isAdmin();
+    }
+    match /cashClosings/{id} {
+      allow read: if isAdmin() || can('finance.read') || (active() && resource.data.userId == request.auth.uid);
+      allow create: if isAdmin() || (active() && request.resource.data.userId == request.auth.uid);
+      allow update, delete: if isAdmin();
+    }
     match /rateHistory/{id} {
       allow read: if active();
       allow create: if can('rates.write');
