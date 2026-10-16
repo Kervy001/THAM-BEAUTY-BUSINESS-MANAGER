@@ -9,6 +9,43 @@
     <link rel="apple-touch-icon" href="apple-touch-icon.png" />
     <script>try{var t=localStorage.getItem('tb-theme');if(t==='dark'||((!t||t==='auto')&&matchMedia('(prefers-color-scheme: dark)').matches))document.documentElement.classList.add('dark')}catch(e){}</script>
     <title>THAM BEAUTY BUSINESS MANAGER</title>
+    <script>
+      // Filet de sécurité : si l'écran reste vide ou bloqué, on affiche l'erreur et un bouton « Réparer » (efface seulement les fichiers en cache de l'app ; les données restent dans le compte).
+      (function () {
+        var errs = []
+        function note(m) { try { m = String(m && m.message ? m.message : m); if (errs.indexOf(m) < 0 && errs.length < 4) errs.push(m) } catch (e) {} }
+        window.addEventListener('error', function (e) { note(e.message || e.error) })
+        window.addEventListener('unhandledrejection', function (e) { note(e.reason) })
+        window.tbRepair = function () {
+          var done = function () { try { sessionStorage.clear() } catch (e) {} location.reload() }
+          try {
+            var p = []
+            if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) p.push(navigator.serviceWorker.getRegistrations().then(function (r) { return Promise.all(r.map(function (x) { return x.unregister() })) }))
+            if (window.caches && caches.keys) p.push(caches.keys().then(function (k) { return Promise.all(k.map(function (c) { return caches.delete(c) })) }))
+            Promise.all(p).then(done, done)
+          } catch (e) { done() }
+        }
+        function show() {
+          if (document.getElementById('tb-watchdog')) return
+          var d = document.createElement('div')
+          d.id = 'tb-watchdog'
+          d.style.cssText = 'position:fixed;inset:0;z-index:2147483000;display:grid;place-items:center;padding:24px;background:#0b0b0d;color:#fff;font-family:system-ui,sans-serif;text-align:center'
+          d.innerHTML = '<div style="max-width:340px"><div style="font-size:18px;font-weight:600;color:#d9b45f">L\u2019application ne s\u2019affiche pas</div>' +
+            '<p style="font-size:14px;color:#d4d4d8;margin:12px 0">Appuyez sur « Réparer » : cela recharge la dernière version. Vos données ne sont pas perdues.</p>' +
+            '<button onclick="tbRepair()" style="width:100%;padding:14px;border:0;border-radius:14px;background:#d9b45f;color:#0b0b0d;font-weight:700;font-size:16px">Réparer et recharger</button>' +
+            '<button onclick="location.reload()" style="width:100%;margin-top:10px;padding:12px;border:0;border-radius:14px;background:#27272a;color:#fff;font-size:14px">Recharger seulement</button>' +
+            (errs.length ? '<p style="margin-top:14px;font-size:11px;color:#a1a1aa;word-break:break-word">Détail : ' + errs.join(' · ').replace(/</g, '&lt;') + '</p>' : '') + '</div>'
+          document.body.appendChild(d)
+        }
+        function check(onlyEmpty) {
+          var r = document.getElementById('root')
+          var t = r ? (r.innerText || '').replace(/\s+/g, ' ').trim() : ''
+          if (!t || (!onlyEmpty && /^Chargement/.test(t))) show()
+        }
+        setTimeout(function () { check(true) }, 6000)
+        setTimeout(function () { check(false) }, 20000)
+      })()
+    </script>
   </head>
   <body>
     <div id="root">
