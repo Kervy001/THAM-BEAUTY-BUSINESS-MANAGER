@@ -1,0 +1,122 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html { -webkit-tap-highlight-color: transparent; }
+body {
+  font-family: 'DM Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  background: #faf7f2;
+  color: #1a1714;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'tnum' 1;
+}
+input, select, textarea { font-size: 16px; }
+h1, h2, h3 { letter-spacing: -0.01em; }
+::selection { background: #ebca7c; color: #0b0b0d; }
+
+@layer components {
+  .btn { @apply inline-flex items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold transition duration-150 active:scale-[.97] disabled:pointer-events-none disabled:opacity-50; }
+  .btn-primary { @apply btn bg-ink text-gold-300 ring-1 ring-gold-500/40 hover:bg-ink-700 hover:ring-gold-400/70; }
+  .btn-gold { @apply btn bg-gradient-to-b from-gold-300 to-gold-500 text-ink shadow-glow hover:from-gold-200 hover:to-gold-400; }
+  .btn-ghost { @apply btn bg-white text-neutral-800 ring-1 ring-line hover:bg-paper hover:ring-gold-400/60; }
+  .btn-danger { @apply btn bg-blush-600 text-white hover:bg-blush-500; }
+  .btn-sm { @apply rounded-lg px-2.5 py-1.5 text-xs; }
+  .input { @apply w-full rounded-xl border border-line bg-white px-3.5 py-2.5 text-sm text-neutral-900 placeholder:text-neutral-400 transition focus:border-gold-500 focus:outline-none focus:ring-2 focus:ring-gold-400/25; }
+  .label { @apply mb-1.5 block text-[13px] font-medium text-neutral-600; }
+  .card { @apply rounded-2xl border border-line bg-white p-4 shadow-card; }
+  .th { @apply whitespace-nowrap px-3 py-2.5 text-left text-xs font-medium text-neutral-500; }
+  .td { @apply px-3 py-3 align-top text-sm; }
+  .section-title { @apply mb-3 flex items-center gap-3 font-display text-lg font-semibold text-neutral-900; }
+  .section-title::after { content: ''; @apply h-px flex-1 bg-line; }
+  .gold-text { @apply bg-gradient-to-b from-gold-200 via-gold-400 to-gold-600 bg-clip-text text-transparent; }
+}
+
+tbody tr { transition: background-color .12s; }
+tbody tr:hover { background: #fcfaf6; }
+
+@keyframes pop-in { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
+.pop-in { animation: pop-in .18s ease-out both; }
+@keyframes slide-up { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
+.slide-up { animation: slide-up .22s ease-out both; }
+
+.safe-bottom { padding-bottom: max(env(safe-area-inset-bottom), 0px); }
+
+@media print {
+  html, body { background: #fff !important; }
+  body * { visibility: hidden; }
+  .print-area, .print-area * { visibility: visible; }
+  .print-area { position: absolute; left: 0; top: 0; width: 100%; padding: 0 !important; border: none !important; box-shadow: none !important; background: #fff !important; }
+  .no-print { display: none !important; }
+  .print-area img { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* ======================= MODE SOMBRE =======================
+   Activé par la classe « dark » sur <html> (réglage de l'appareil ou bouton ☾/☀).
+   Limité à l'écran : l'impression (factures, reçus, étiquettes) reste toujours blanche. */
+@media screen {
+  html.dark { color-scheme: dark; }
+  html.dark body { background: #0e0e11; color: #ece7dd; }
+  html.dark ::selection { background: #a87d2a; color: #fff; }
+
+  /* surfaces */
+  html.dark .bg-white { background-color: #17171c; }
+  html.dark .bg-paper { background-color: #0e0e11; }
+  html.dark .bg-paper\/90 { background-color: rgba(14, 14, 17, .9); }
+  html.dark .bg-neutral-50 { background-color: #1c1c22; }
+  html.dark .bg-neutral-100 { background-color: #202027; }
+  html.dark .hover\:bg-paper:hover, html.dark .hover\:bg-white:hover { background-color: #202027; }
+  html.dark tbody tr:hover { background: #1d1d23; }
+  html.dark .card { background-color: #17171c; border-color: #2b2b33; box-shadow: none; }
+  html.dark .input { background-color: #1c1c22; border-color: #2f2f38; color: #f2eee6; }
+  html.dark .input::placeholder { color: #77716a; }
+  html.dark .input:focus { border-color: #c99a3e; }
+  html.dark .btn-ghost { background-color: #1c1c22; color: #e9e4da; --tw-ring-color: #2f2f38; }
+  html.dark .btn-ghost:hover { background-color: #25252d; }
+  html.dark .btn-primary { background-color: #25252d; }
+  html.dark .btn-primary:hover { background-color: #2d2d36; }
+  html.dark .label { color: #b3ada2; }
+  html.dark .th { color: #8f897f; }
+
+  /* textes */
+  html.dark .text-neutral-900, html.dark .text-neutral-800, html.dark .hover\:text-neutral-900:hover { color: #f2eee6; }
+  html.dark .text-neutral-700 { color: #d8d3c9; }
+  html.dark .text-neutral-600 { color: #b6b0a5; }
+  html.dark .text-neutral-500 { color: #958f85; }
+  html.dark .text-neutral-400 { color: #7c766d; }
+  html.dark .text-gold-700, html.dark .text-gold-600 { color: #e0b25c; }
+  html.dark .text-ink { color: #0b0b0d; }
+  html.dark .text-emerald-700 { color: #6ee7b7; }
+  html.dark .text-red-700, html.dark .text-red-600, html.dark .text-blush-600 { color: #ff8fb4; }
+  html.dark .text-amber-800 { color: #fcd68a; }
+  html.dark .text-sky-700, html.dark .text-sky-900 { color: #8fd3f7; }
+
+  /* filets et anneaux */
+  html.dark .border-line, html.dark [class*="border-line"] { border-color: #2b2b33; }
+  html.dark .border-neutral-100, html.dark .border-neutral-200 { border-color: #2b2b33; }
+  html.dark .ring-line { --tw-ring-color: #2b2b33; }
+  html.dark .bg-line { background-color: #2b2b33; }
+  html.dark [class*="divide-line"] > :not([hidden]) ~ :not([hidden]) { border-color: #2b2b33; }
+  html.dark .ring-paper { --tw-ring-color: #0e0e11; }
+  html.dark .ring-white { --tw-ring-color: #17171c; }
+
+  /* pastilles et messages colorés */
+  html.dark .bg-gold-100 { background-color: rgba(201, 154, 62, .18); }
+  html.dark .bg-gold-100\/50, html.dark .bg-gold-100\/60 { background-color: rgba(201, 154, 62, .14); }
+  html.dark .bg-emerald-50 { background-color: rgba(16, 185, 129, .15); }
+  html.dark .bg-red-50, html.dark .bg-blush-50 { background-color: rgba(240, 86, 143, .14); }
+  html.dark .bg-amber-50 { background-color: rgba(245, 158, 11, .15); }
+  html.dark .bg-sky-50 { background-color: rgba(56, 189, 248, .14); }
+  html.dark .ring-emerald-200 { --tw-ring-color: rgba(16, 185, 129, .35); }
+  html.dark .ring-red-200, html.dark .ring-blush-100 { --tw-ring-color: rgba(240, 86, 143, .35); }
+  html.dark .ring-amber-200 { --tw-ring-color: rgba(245, 158, 11, .35); }
+  html.dark .ring-sky-200 { --tw-ring-color: rgba(56, 189, 248, .35); }
+  html.dark .border-blush-100 { border-color: rgba(240, 86, 143, .35); }
+  html.dark .border-sky-200 { border-color: rgba(56, 189, 248, .35); }
+  html.dark .border-gold-300 { border-color: rgba(201, 154, 62, .5); }
+
+  /* fenêtres : le voile reste sombre, le panneau suit .bg-white */
+  html.dark .shadow-pop { box-shadow: 0 18px 50px -12px rgba(0, 0, 0, .7); }
+}
