@@ -5,6 +5,7 @@ import { VitePWA } from 'vite-plugin-pwa'
 // base './' : fonctionne sur GitHub Pages quel que soit le nom du dépôt
 export default defineConfig({
   base: './',
+  define: { __BUILD__: JSON.stringify(new Date().toISOString()) }, // date de construction, affichée dans « Sécurité » pour savoir quelle version tourne
   build: {
     target: 'es2020',
     rollupOptions: {
@@ -43,6 +44,9 @@ export default defineConfig({
       },
       workbox: {
         navigateFallback: 'index.html',
+        cleanupOutdatedCaches: true, // supprime les anciens fichiers à chaque mise à jour
+        skipWaiting: true, // la nouvelle version prend la place tout de suite
+        clientsClaim: true,
         globPatterns: ['**/*.{js,css,html,svg,png,jpg,webp,woff,woff2}'],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024
       }
