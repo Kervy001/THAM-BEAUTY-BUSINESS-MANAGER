@@ -20,6 +20,7 @@ export async function setPin(uid, pin) {
   if (!PIN_RE.test(pin)) throw new Error('Le PIN doit avoir 4 à 6 chiffres.')
   const salt = crypto.getRandomValues(new Uint8Array(16))
   const iter = 150000
+  setTries(uid, 0)
   write(k('pin', uid), { salt: b64(salt), iter, len: pin.length, hash: await derive(pin, salt, iter) })
 }
 export async function checkPin(uid, pin) {
@@ -27,6 +28,9 @@ export async function checkPin(uid, pin) {
   if (!r) return false
   return (await derive(pin, unb64(r.salt), r.iter)) === r.hash
 }
+// Compteur d'essais PIN sauvegardé sur l'appareil : recharger la page ne le remet plus à zéro.
+export const getTries = (uid) => Number(read(k('tries', uid))) || 0
+export const setTries = (uid, n) => { try { n ? write(k('tries', uid), n) : localStorage.removeItem(k('tries', uid)) } catch { /* rien */ } }
 export function removePin(uid) { try { localStorage.removeItem(k('pin', uid)); localStorage.removeItem(k('bio', uid)) } catch { /* rien */ } }
 
 // ---- empreinte / visage (clé d'accès WebAuthn de l'appareil)

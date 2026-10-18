@@ -13,24 +13,28 @@ service cloud.firestore {
     function trashedItemsUntouched() { return request.resource.data.get('trashedItems', []) == resource.data.get('trashedItems', []) || isAdmin(); }
     // Ventes : seul l'administrateur peut annuler une vente (statut) ou la modifier après validation (edits)
     function saleGuard() { return (request.resource.data.get('status', null) == resource.data.get('status', null) && request.resource.data.get('edits', []) == resource.data.get('edits', [])) || isAdmin(); }
+    // Champs de vente qu'un non-administrateur ne peut jamais changer après création
+    function saleFixed() { return isAdmin() || (request.resource.data.get('number', null) == resource.data.get('number', null) && request.resource.data.get('currency', null) == resource.data.get('currency', null) && request.resource.data.get('rate', null) == resource.data.get('rate', null) && request.resource.data.get('globalDiscount', null) == resource.data.get('globalDiscount', null) && request.resource.data.get('sellerId', null) == resource.data.get('sellerId', null)); }
     function notInitialized() { return !exists(/databases/$(database)/documents/settings/main); }
 
     // Premier utilisateur = administrateur (uniquement tant que l'application n'est pas initialisée)
     match /users/{id} {
       allow read: if active() || (signedIn() && request.auth.uid == id);
-      allow create: if (signedIn() && request.auth.uid == id && notInitialized() && request.resource.data.role == 'admin') || can('users.manage');
-      allow update, delete: if can('users.manage');
+      allow create: if (signedIn() && request.auth.uid == id && notInitialized() && request.resource.data.role == 'admin') || isAdmin() || (can('users.manage') && request.resource.data.role != 'admin');
+      // Un gestionnaire d'utilisateurs non-admin ne peut ni toucher un admin ni en créer un
+      allow update: if isAdmin() || (can('users.manage') && resource.data.role != 'admin' && request.resource.data.role != 'admin');
+      allow delete: if isAdmin() || (can('users.manage') && resource.data.role != 'admin');
     }
     match /settings/{id} {
       allow read: if signedIn();
       allow create: if (signedIn() && notInitialized()) || can('settings.manage');
-      allow update: if can('settings.manage') || can('rates.write');
+      allow update: if can('settings.manage') || (can('rates.write') && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rate', 'rateUpdatedAt', 'updatedAt', 'updatedBy']));
       allow delete: if false;
     }
     // Alertes « nouvelle vente » : tout utilisateur actif peut en créer, seul l'administrateur les lit
     match /notifications/{id} {
       allow read: if isAdmin();
-      allow create: if active() && request.resource.data.type == 'sale';
+      allow create: if active() && request.resource.data.type == 'sale' && request.resource.data.get('byId', request.auth.uid) == request.auth.uid;
       allow update, delete: if isAdmin();
     }
     // Inventaires physiques et clôtures de caisse
@@ -50,7 +54,10 @@ service cloud.firestore {
       allow update, delete: if false;
     }
     match /counters/{id} {
-      allow read, write: if active();
+      allow read: if active();
+      allow create: if active() && request.resource.data.value == 1;
+      allow update: if active() && request.resource.data.value > resource.data.value && request.resource.data.value <= resource.data.value + 1;
+      allow delete: if false;
     }
     match /products/{id} {
       allow read: if active();
@@ -81,12 +88,12 @@ service cloud.firestore {
     match /sales/{id} {
       allow read: if active();
       allow create: if can('sales.write') || can('sales.pay') || can('stock.write');
-      allow update: if (can('sales.write') || can('sales.pay') || can('stock.write')) && trashUntouched() && saleGuard();
+      allow update: if (can('sales.write') || can('sales.pay') || can('stock.write')) && trashUntouched() && saleGuard() && saleFixed();
       allow delete: if isAdmin(); // suppression définitive : administrateur seulement
     }
     match /audit/{id} {
       allow read: if isAdmin() || can('finance.read');
-      allow create: if active();
+      allow create: if active() && request.resource.data.get('userId', request.auth.uid) == request.auth.uid;
       allow update, delete: if false;
     }
   }

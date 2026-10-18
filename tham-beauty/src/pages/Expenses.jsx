@@ -3,12 +3,14 @@ import { arrayUnion } from 'firebase/firestore'
 import { useApp } from '../lib/store.jsx'
 import { convert } from '../lib/calc.js'
 import { GENERAL_CATEGORIES, METHODS, money, today, fdate, nowIso, uid } from '../lib/util.js'
-import { Badge, Empty, Input, Modal, NumberInput, PageHeader, Select, Table, Textarea } from '../components/ui.jsx'
+import { Badge, Empty, Input, Modal, NumberInput, PageHeader, PasswordConfirm, Select, Table, Textarea } from '../components/ui.jsx'
 
-export function ExpenseModal({ projectId, onClose }) {
+export function ExpenseModal({ projectId, expense, onClose }) {
   const app = useApp()
+  const editing = !!expense
+  if (editing) projectId = expense.projectId || ''
   const cats = projectId ? app.settings.expenseCategories : GENERAL_CATEGORIES
-  const [e, setE] = useState({
+  const [e, setE] = useState(editing ? { ...expense, amount: String(expense.amount ?? ''), rate: String(expense.rate ?? app.rate), global: !!expense.global } : {
     projectId: projectId || '', date: today(), category: cats[0], description: '', payee: '', amount: '', currency: 'USD',
     rate: String(app.rate), method: 'Espèces', reference: '', comment: '', global: true
   })
@@ -21,6 +23,13 @@ export function ExpenseModal({ projectId, onClose }) {
     if (!(Number(e.amount) > 0)) return
     setBusy(true)
     try {
+      if (editing) {
+        const { id: _id, _ts, ...rest } = e
+        await app.save('expenses', expense.id, { ...rest, amount: Number(e.amount), rate: Number(e.rate), convertedRef: converted, refCurrency: app.ref, global: !!(projectId && e.global) }, 'modification dépense')
+        if (projectId) await app.save('projects', projectId, { history: arrayUnion({ at: nowIso(), by: app.profile?.name || '', text: `Dépense ${expense.number} modifiée : ${e.category} ${e.amount} ${e.currency} (taux ${e.rate})` }) })
+        onClose(expense.id)
+        return
+      }
       const number = await app.nextNumber('DEP')
       const rec = { ...e, number, amount: Number(e.amount), rate: Number(e.rate), convertedRef: converted, refCurrency: app.ref, status: 'valide', kind: e.projectId ? 'projet' : 'general', global: !!(e.projectId && e.global) }
       const id = await app.save('expenses', null, rec, 'dépense')
@@ -32,9 +41,9 @@ export function ExpenseModal({ projectId, onClose }) {
   }
 
   return (
-    <Modal title={projectId ? 'Nouvelle dépense du projet' : 'Nouvelle dépense'} onClose={() => onClose()}>
+    <Modal title={editing ? `Modifier la dépense ${expense.number || ''}` : projectId ? 'Nouvelle dépense du projet' : 'Nouvelle dépense'} onClose={() => onClose()}>
       <form onSubmit={submit} className="space-y-3">
-        {!projectId && (
+        {!projectId && !editing && (
           <Select label="Type" value={e.projectId} onChange={(v) => setE({ ...e, projectId: v, category: v ? app.settings.expenseCategories[0] : GENERAL_CATEGORIES[0] })}
             options={[{ value: '', label: 'Dépense générale (loyer, internet…)' }, ...app.D.projects.filter((p) => p.status !== 'archive').map((p) => ({ value: p.id, label: `Projet ${p.number} — ${p.name}` }))]} />
         )}
@@ -56,7 +65,7 @@ export function ExpenseModal({ projectId, onClose }) {
         </div>
         <Input label="Référence de transaction" value={e.reference} onChange={(x) => set('reference')(x.target.value)} />
         <Textarea label="Commentaire" value={e.comment} onChange={(x) => set('comment')(x.target.value)} />
-        <button className="btn-primary w-full" disabled={busy}>{busy ? '…' : 'Enregistrer la dépense'}</button>
+        <button className="btn-primary w-full" disabled={busy}>{busy ? '…' : editing ? 'Enregistrer les modifications' : 'Enregistrer la dépense'}</button>
       </form>
     </Modal>
   )
@@ -65,6 +74,8 @@ export function ExpenseModal({ projectId, onClose }) {
 export default function Expenses() {
   const app = useApp()
   const [modal, setModal] = useState(false)
+  const [editX, setEditX] = useState(null)
+  const [delX, setDelX] = useState(null)
   const [filter, setFilter] = useState('')
   const canEdit = app.can('expenses.write')
   const list = app.D.expenses
@@ -103,13 +114,25 @@ export default function Expenses() {
                 <td className="td">{x.category}{x.projectId && <> <Badge tone={x.global ? 'gold' : 'gray'}>{x.global ? 'Global' : 'Réparti'}</Badge></>}<div className="text-xs text-neutral-500">{x.description}</div></td>
                 <td className="td">{money(x.amount, x.currency)}<div className="text-xs text-neutral-500">taux {x.rate}</div></td>
                 <td className="td">{money(convert(x.amount, x.currency, app.ref, x.rate), app.ref)}</td>
-                <td className="td">{x.status === 'annule' ? <Badge tone="red">Annulée</Badge> : canEdit && <button className="btn-ghost btn-sm" onClick={() => cancel(x)}>Annuler</button>}</td>
+                <td className="td"><div className="flex flex-wrap items-center gap-1">{x.status === 'annule' ? <Badge tone="red">Annulée</Badge> : canEdit && <button className="btn-ghost btn-sm" onClick={() => cancel(x)}>Annuler</button>}
+                  {app.isAdmin && <><button className="btn-ghost btn-sm" onClick={() => setEditX(x)} aria-label="Modifier">✎</button><button className="btn-ghost btn-sm !text-blush-600" onClick={() => setDelX(x)} aria-label="Supprimer">🗑</button></>}</div></td>
               </tr>
             ))}
           </Table>
         </div>
       )}
       {modal && <ExpenseModal onClose={() => setModal(false)} />}
+      {editX && <ExpenseModal expense={editX} onClose={() => setEditX(null)} />}
+      {delX && (
+        <PasswordConfirm title="Supprimer cette dépense ?" confirmLabel="Supprimer définitivement" askReason verify={app.verifyPassword}
+          onConfirm={async (reason) => {
+            await app.removeExpense(delX, reason)
+            if (delX.projectId) await app.save('projects', delX.projectId, { history: arrayUnion({ at: nowIso(), by: app.profile?.name || '', text: `Dépense ${delX.number} supprimée (${delX.category} ${delX.amount} ${delX.currency})${reason ? ' : ' + reason : ''}` }) })
+          }}
+          onClose={(done) => { setDelX(null); if (done) app.notify('Dépense supprimée.') }}>
+          <p><b>{delX.number}</b> — {delX.category} : {money(delX.amount, delX.currency)} sera supprimée définitivement. Le coût du projet et les bénéfices se recalculent. Pour garder une trace sans la supprimer, utilisez plutôt « Annuler ».</p>
+        </PasswordConfirm>
+      )}
     </>
   )
 }

@@ -2,6 +2,7 @@ export const PERMS = {
   'sales.write': 'Enregistrer des ventes',
   'sales.pay': 'Enregistrer des paiements clients',
   'discount.authorize': 'Autoriser les grosses réductions',
+  'discount.global': 'Appliquer une réduction globale sur une vente',
   'customers.write': 'Gérer les clients',
   'products.write': 'Gérer les produits et variantes',
   'stock.read': 'Consulter les stocks',

@@ -47,7 +47,7 @@ function Users() {
         app.logAudit('création utilisateur', 'users', uidNew, edit.email)
       }
       setEdit(null)
-    } catch (ex) { setErr(ex.code === 'auth/email-already-in-use' ? 'Adresse déjà utilisée.' : ex.code === 'auth/weak-password' ? 'Mot de passe trop court (6 caractères minimum).' : ex.message) } finally { setBusy(false) }
+    } catch (ex) { setErr(ex.code === 'auth/email-already-in-use' ? 'Adresse déjà utilisée.' : ex.code === 'auth/weak-password' ? 'Mot de passe trop court (8 caractères minimum).' : ex.message) } finally { setBusy(false) }
   }
   const togglePerm = (k) => setEdit({ ...edit, perms: edit.perms.includes(k) ? edit.perms.filter((x) => x !== k) : [...edit.perms, k] })
   const setRole = (role) => setEdit({ ...edit, role, perms: [...ROLES[role].perms] })
@@ -71,7 +71,7 @@ function Users() {
             <div className="grid gap-3 sm:grid-cols-2">
               <Input label="Nom" value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} required />
               <Input label="E-mail" type="email" value={edit.email} onChange={(e) => setEdit({ ...edit, email: e.target.value })} required disabled={!!edit.id} />
-              {!edit.id && <Input label="Mot de passe initial" type="text" value={edit.password} onChange={(e) => setEdit({ ...edit, password: e.target.value })} required minLength={6} />}
+              {!edit.id && <Input label="Mot de passe initial" type="text" value={edit.password} onChange={(e) => setEdit({ ...edit, password: e.target.value })} required minLength={8} />}
               <Select label="Rôle (préréglage des autorisations)" value={edit.role} onChange={setRole} options={Object.entries(ROLES).map(([value, r]) => ({ value, label: r.label }))} />
               {app.multiLoc && <Select label="Point de vente attitré (facultatif)" value={edit.locationId || ''} onChange={(v) => setEdit({ ...edit, locationId: v })} placeholder="— libre : peut choisir —" options={app.locations.map((l) => ({ value: l.id, label: l.name }))} />}
               {edit.id && edit.id !== app.authUser.uid && <Select label="Compte" value={edit.active === false ? 'non' : 'oui'} onChange={(v) => setEdit({ ...edit, active: v === 'oui' })} options={[{ value: 'oui', label: 'Actif' }, { value: 'non', label: 'Désactivé' }]} />}

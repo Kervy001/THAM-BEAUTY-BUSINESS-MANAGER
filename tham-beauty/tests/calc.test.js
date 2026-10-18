@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { convert, saleTotals, saleSummary, projectCosting, purchaseSummary, itemStock, saleProfit } from '../src/lib/calc.js'
+import { priceFromCoef, supplierDiscountAmount, projectStats, markupPct, marginPct, convert, saleTotals, saleSummary, projectCosting, purchaseSummary, itemStock, saleProfit } from '../src/lib/calc.js'
 
 test('conversion USD/HTG', () => {
   assert.equal(convert(10, 'USD', 'HTG', 135), 1350)
@@ -93,4 +93,57 @@ test('stock direct : aucune dette fournisseur', () => {
   assert.equal(s.owed, 0)
   assert.equal(s.balance, 0)
   assert.equal(s.status, 'paye')
+})
+
+test('pourcentages de gain : achat 10, vente 15 → +50 % sur coût, marge 33,3 %', () => {
+  assert.equal(markupPct(15, 10), 50)
+  assert.ok(Math.abs(marginPct(15, 10) - 33.3333) < 0.001)
+  assert.equal(markupPct(15, 0), null)
+  assert.equal(marginPct(0, 10), null)
+  assert.equal(markupPct(8, 10), -20)
+})
+
+test('remise fournisseur : pourcentage du total commandé, même si réception partielle', () => {
+  const p = { currency: 'USD', rate: 135, supplierDiscount: 100, items: [{ id: 'a', qtyOrdered: 10, qtyReceived: 5, unitCost: 100 }] }
+  assert.equal(projectCosting(p, [], 'USD').perItem.a.unitPurchaseRef, 90)
+})
+
+test('remise fournisseur en pourcentage et prix = achat après remise × coefficient', () => {
+  const p = { currency: 'USD', rate: 135, supplierDiscount: 10, supplierDiscountType: 'percent', items: [{ id: 'a', qtyOrdered: 10, unitCost: 10 }] }
+  assert.equal(supplierDiscountAmount(p), 10) // 10 % de 100
+  assert.equal(projectCosting(p, [], 'USD').perItem.a.unitPurchaseRef, 9)
+  assert.equal(priceFromCoef(p, 10, 2.5, 'USD'), 22.5)
+  assert.equal(priceFromCoef(p, 10, 2.5, 'HTG'), 3037.5)
+  assert.equal(purchaseSummary(p).owed, 90)
+})
+
+test('frais globaux : pas dans le coût des articles, objectif à récupérer par les bénéfices', () => {
+  const project = { id: 'p1', currency: 'USD', rate: 135, items: [{ id: 'w', qtyOrdered: 10, qtyReceived: 10, unitCost: 10, plannedPrice: 25, plannedCurrency: 'USD' }] }
+  const exps = [{ amount: 50, currency: 'USD', rate: 135, global: true }, { amount: 10, currency: 'USD', rate: 135 }]
+  const c = projectCosting(project, exps, 'USD')
+  assert.equal(c.globalRef, 50)
+  assert.equal(c.perItem.w.unitCostRef, 11) // 10 + 10/10 (frais réparti seulement)
+  const sale = (qty) => [{ status: 'valide', currency: 'USD', rate: 135, lines: [{ projectId: 'p1', itemId: 'w', qty, unitPrice: 25 }] }]
+  const s0 = projectStats(project, [], c, 'USD', 135)
+  assert.equal(s0.netProfitRef, -50)
+  assert.equal(s0.recoveryPct, 0)
+  const s1 = projectStats(project, sale(2), c, 'USD', 135) // bénéfice 2 × (25 − 11) = 28
+  assert.equal(s1.profitRef, 28)
+  assert.equal(s1.recoveredRef, 28)
+  assert.equal(s1.netProfitRef, -22)
+  assert.equal(Math.round(s1.recoveryPct), 56)
+  const s2 = projectStats(project, sale(5), c, 'USD', 135) // 70 > 50
+  assert.equal(s2.recoveredRef, 50)
+  assert.equal(s2.recoveryPct, 100)
+  assert.equal(s2.netProfitRef, 20)
+  assert.equal(s0.totalCostRef, 160) // 100 + 10 + 50
+})
+
+test('inRange lit une date sans heure comme date locale', async () => {
+  const { inRange } = await import('../src/lib/calc.js')
+  const r = [new Date(2026, 9, 1, 0, 0, 0), new Date(2026, 9, 31, 23, 59, 59)]
+  assert.equal(inRange('2026-10-01', r), true)
+  assert.equal(inRange('2026-10-31', r), true)
+  assert.equal(inRange('2026-09-30', r), false)
+  assert.equal(inRange('2026-11-01', r), false)
 })

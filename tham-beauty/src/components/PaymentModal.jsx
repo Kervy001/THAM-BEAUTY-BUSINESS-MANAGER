@@ -5,9 +5,12 @@ import { METHODS, money, today, uid, nowIso } from '../lib/util.js'
 import { Input, Modal, NumberInput, Select, Notice } from './ui.jsx'
 
 // Paiement avec son propre taux de change (conservé à vie).
-export default function PaymentModal({ title, opCurrency, opRate, remaining, refund, onSave, onClose }) {
+export default function PaymentModal({ title, opCurrency, opRate, remaining, refund, payment, onSave, onClose }) {
   const app = useApp()
-  const [p, setP] = useState({
+  const [p, setP] = useState(payment ? {
+    date: payment.date || today(), amount: String(payment.amount ?? ''), currency: payment.currency || opCurrency, rate: String(payment.rate ?? app.rate),
+    method: payment.method || 'Espèces', reference: payment.reference || '', note: payment.note || ''
+  } : {
     date: today(), amount: remaining > 0 ? String(Math.round(remaining * 100) / 100) : '', currency: opCurrency,
     rate: String(app.rate), method: 'Espèces', reference: '', note: ''
   })
@@ -21,6 +24,11 @@ export default function PaymentModal({ title, opCurrency, opRate, remaining, ref
     if (!(Number(p.rate) > 0)) return alert('Le taux doit être supérieur à 0.')
     setBusy(true)
     try {
+      if (payment) {
+        await onSave({ ...payment, date: p.date, amount: Number(p.amount), currency: p.currency, rate: Number(p.rate), method: p.method, reference: p.reference, note: p.note, editedBy: app.profile?.name || '', editedAt: nowIso() })
+        onClose()
+        return
+      }
       await onSave({
         id: uid(), type: refund ? 'refund' : 'payment', date: p.date, amount: Number(p.amount), currency: p.currency,
         rate: Number(p.rate), method: p.method, reference: p.reference, note: p.note, status: 'valide',

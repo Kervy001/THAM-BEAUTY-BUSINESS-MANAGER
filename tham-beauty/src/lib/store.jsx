@@ -303,7 +303,7 @@ export function AppProvider({ children }) {
     if (json?.app !== 'tham-beauty' || !json.collections) throw new Error('Ce fichier n’est pas une sauvegarde THAM BEAUTY.')
     if (!navigator.onLine) throw new Error('Connexion Internet requise pour restaurer.')
     const ops = []
-    BACKUP_COLS.forEach((c) => (json.collections[c] || []).forEach(({ id, ...rest }) => { if (id) ops.push({ ref: doc(db, c, id), data: { ...rest, _ts: serverTimestamp() } }) }))
+    BACKUP_COLS.forEach((c) => (json.collections[c] || []).forEach(({ id, ...rest }) => { if (typeof id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(id) && rest && typeof rest === 'object') ops.push({ ref: doc(db, c, id), data: { ...rest, _ts: serverTimestamp() } }) }))
     for (let i = 0; i < ops.length; i += 400) {
       const b = writeBatch(db)
       ops.slice(i, i + 400).forEach((o) => b.set(o.ref, o.data))
@@ -318,6 +318,12 @@ export function AppProvider({ children }) {
   const isAdmin = profile?.role === 'admin'
   const dataRef = useRef(data)
   dataRef.current = data
+
+  // Suppression définitive d'une dépense (administrateur seulement ; mot de passe demandé dans l'interface)
+  const removeExpense = useCallback(async (x, reason = '') => {
+    await write(deleteDoc(doc(db, 'expenses', x.id)))
+    logAudit('dépense supprimée', 'expenses', x.id, `${x.number || ''} ${x.category || ''} ${x.amount} ${x.currency}${reason ? ' — ' + reason : ''}`.trim())
+  }, [write, logAudit])
 
   // Vérifie le mot de passe de l'administrateur connecté (Internet requis)
   const verifyPassword = useCallback(async (pw) => {
@@ -428,7 +434,7 @@ export function AppProvider({ children }) {
   const value = {
     authUser, profile, active, settings: settings || DEFAULT_SETTINGS, settingsExists: !!settings, settingsReady, ref, rate, online, hasPending, toasts,
     D, costing, audit, save, saveSettings, write, notify, logAudit, nextNumber, isAdmin,
-    verifyPassword, exportAll, restoreAll, locations, multiLoc: locations.length > 1, notifs, unreadNotifs, markNotifsSeen, pushSaleNotification, trashProject, restoreProject, purgeProject, trashItems, restoreItems, purgeItems, requestSaleDeletion, refuseSaleDeletion, trashSale, restoreSale, purgeSale,
+    verifyPassword, removeExpense, exportAll, restoreAll, locations, multiLoc: locations.length > 1, notifs, unreadNotifs, markNotifsSeen, pushSaleNotification, trashProject, restoreProject, purgeProject, trashItems, restoreItems, purgeItems, requestSaleDeletion, refuseSaleDeletion, trashSale, restoreSale, purgeSale,
     can: (p) => can(profile, p),
     logout: () => { try { localStorage.removeItem(`tb-profile-${authUser?.uid}`) } catch { /* rien */ } return signOut(auth) }
   }

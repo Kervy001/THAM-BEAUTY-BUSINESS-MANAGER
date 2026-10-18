@@ -12,7 +12,7 @@ import { Input, Notice } from '../components/ui.jsx'
 const msg = (e) => ({
   'auth/invalid-credential': 'Identifiant ou mot de passe incorrect.',
   'auth/invalid-email': 'Adresse e-mail invalide.',
-  'auth/weak-password': 'Mot de passe trop faible (minimum 6 caractères).',
+  'auth/weak-password': 'Mot de passe trop faible (minimum 8 caractères).',
   'auth/email-already-in-use': 'Cette adresse est déjà utilisée.',
   'auth/too-many-requests': 'Trop de tentatives. Réessayez dans quelques minutes.',
   'permission-denied': "Refusé : l'application est déjà initialisée. Demandez un compte à l'administrateur."
@@ -92,7 +92,7 @@ export default function Login() {
         </h2>
         {mode === 'setup' && <Input label="Votre nom" value={name} onChange={(e) => setName(e.target.value)} required />}
         <Input label="Adresse e-mail" type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required />
-        {mode !== 'reset' && <Input label="Mot de passe" type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} value={pw} onChange={(e) => setPw(e.target.value)} required minLength={6} />}
+        {mode !== 'reset' && <Input label="Mot de passe" type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} value={pw} onChange={(e) => setPw(e.target.value)} required minLength={8} />}
         {err && <Notice tone="red">{err}</Notice>}
         {info && <Notice tone="blue">{info}</Notice>}
         <button className="btn-primary w-full" disabled={busy}>{busy ? '…' : mode === 'login' ? 'Se connecter' : mode === 'reset' ? 'Envoyer le lien' : "Créer l'administrateur"}</button>

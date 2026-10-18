@@ -340,7 +340,7 @@ export function periodRange(kind, custom) {
 
 export function inRange(dateStr, range) {
   if (!dateStr) return false
-  const d = new Date(dateStr)
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? new Date(dateStr + 'T12:00:00') : new Date(dateStr)
   return d >= range[0] && d <= range[1]
 }
 

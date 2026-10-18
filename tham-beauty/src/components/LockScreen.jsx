@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import Logo from './Logo.jsx'
 import Icon from './Icon.jsx'
-import { checkPin, hasBio, pinLength, setPin, PIN_RE, unlockBio } from '../lib/security.js'
+import { checkPin, getTries, setTries as setTriesStore, hasBio, pinLength, setPin, PIN_RE, unlockBio } from '../lib/security.js'
 
 const PW_ERR = {
   'auth/invalid-credential': 'Mot de passe incorrect.', 'auth/wrong-password': 'Mot de passe incorrect.', 'auth/invalid-login-credentials': 'Mot de passe incorrect.',
@@ -44,7 +44,9 @@ export function LockScreen({ uid, name, onUnlock, onLogout, verifyPassword }) {
   const bio = hasBio(uid)
   const [pin, setPinVal] = useState('')
   const [err, setErr] = useState('')
-  const [tries, setTries] = useState(0)
+  const [tries, setTriesState] = useState(() => getTries(uid))
+  const setTries = (n) => { setTriesState(n); setTriesStore(uid, n) }
+  useEffect(() => { if (tries >= MAX_TRIES) setMode('password') }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const [busy, setBusy] = useState(false)
   const [mode, setMode] = useState('pin') // 'pin' | 'password' (PIN oublié / trop d'essais) | 'newpin'
 
@@ -62,7 +64,7 @@ export function LockScreen({ uid, name, onUnlock, onLogout, verifyPassword }) {
     setErr('')
     if (next.length < len) return
     setBusy(true)
-    if (await checkPin(uid, next)) { onUnlock(); return }
+    if (await checkPin(uid, next)) { setTries(0); onUnlock(); return }
     const t = tries + 1
     setTries(t)
     setPinVal('')

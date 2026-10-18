@@ -94,7 +94,7 @@ export function NewSale() {
     setTimeout(() => document.getElementById(`line-${id}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 120)
   }, [lines, scan])
 
-  const draft = { currency: f.currency, rate: Number(f.rate), globalDiscount: { type: f.globalType, value: Number(f.globalValue) || 0 }, lines: lines.map((l) => ({ ...l, qty: Number(l.qty) || 0, unitPrice: Number(l.unitPrice) || 0, discount: { type: l.dType, value: Number(l.dValue) || 0 } })) }
+  const draft = { currency: f.currency, rate: Number(f.rate), globalDiscount: { type: f.globalType, value: app.can('discount.global') ? Number(f.globalValue) || 0 : 0 }, lines: lines.map((l) => ({ ...l, qty: Number(l.qty) || 0, unitPrice: Number(l.unitPrice) || 0, discount: { type: l.dType, value: Number(l.dValue) || 0 } })) }
   const t = saleTotals(draft)
   const showCost = app.can('finance.read')
 
@@ -159,7 +159,7 @@ export function NewSale() {
         currency: f.currency, rate: Number(f.rate), delivery: f.delivery, notes: f.notes, status: 'valide',
         ...(app.multiLoc ? { locationId: f.locationId } : {}),
         sellerId: app.authUser?.uid || '', sellerName: app.profile?.name || '',
-        globalDiscount: { type: f.globalType, value: Number(f.globalValue) || 0 },
+        globalDiscount: { type: f.globalType, value: app.can('discount.global') ? Number(f.globalValue) || 0 : 0 },
         lines: draft.lines.map((l) => ({
           id: l.id, projectId: l.projectId, itemId: l.itemId, label: l.label, sku: l.sku, qty: l.qty, unitPrice: l.unitPrice, discount: l.discount, qtyReturned: 0,
           costSnapshot: app.costing[l.projectId]?.perItem?.[l.itemId]?.unitCostRef || 0
@@ -234,10 +234,12 @@ export function NewSale() {
       </div>
 
       <div className="card space-y-3">
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <Select label="Réduction globale" value={f.globalType} onChange={(v) => setF({ ...f, globalType: v })} options={[{ value: 'fixed', label: `Montant (${f.currency})` }, { value: 'percent', label: 'Pourcentage (%)' }]} />
-          <NumberInput label="Valeur" value={f.globalValue} onChange={(v) => setF({ ...f, globalValue: v })} />
-        </div>
+        {app.can('discount.global') && (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <Select label="Réduction globale" value={f.globalType} onChange={(v) => setF({ ...f, globalType: v })} options={[{ value: 'fixed', label: `Montant (${f.currency})` }, { value: 'percent', label: 'Pourcentage (%)' }]} />
+            <NumberInput label="Valeur" value={f.globalValue} onChange={(v) => setF({ ...f, globalValue: v })} />
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <Stat label="Montant brut" value={money(t.gross, f.currency)} />
           <Stat label="Réductions" value={money(t.totalDiscount, f.currency)} sub={`${round2(t.discountPct)} %`} />

@@ -146,6 +146,8 @@ export function ProjectDetail() {
   const nav = useNavigate()
   const [tab, setTab] = useState('Résumé')
   const [modal, setModal] = useState(null)
+  const [expEdit, setExpEdit] = useState(null)
+  const [expDel, setExpDel] = useState(null)
   const p = app.D.projects.find((x) => x.id === id)
   if (!p) return <Empty>Projet introuvable (chargement…). <Link className="underline" to="/projets">Retour</Link></Empty>
   const canEdit = app.can('projects.write')
@@ -224,7 +226,7 @@ export function ProjectDetail() {
           </div>
           {!expenses.length ? <Empty>Aucune dépense sur ce projet.</Empty> : (
             <div className="card !p-2">
-              <Table head={['N°', 'Date', 'Catégorie', 'Montant', 'Converti', 'Traitement']}>
+              <Table head={['N°', 'Date', 'Catégorie', 'Montant', 'Converti', 'Traitement', ...(app.isAdmin ? [''] : [])]}>
                 {expenses.sort((a, b) => (b.date || '').localeCompare(a.date || '')).map((e) => (
                   <tr key={e.id} className={e.status === 'annule' ? 'opacity-50 line-through' : ''}>
                     <td className="td">{e.number}</td><td className="td">{fdate(e.date)}</td><td className="td">{e.category}</td>
@@ -233,6 +235,7 @@ export function ProjectDetail() {
                     <td className="td">{e.status === 'annule' ? '—' : app.can('expenses.write') ? (
                       <button className="btn-ghost btn-sm whitespace-nowrap" onClick={() => app.save('expenses', e.id, { global: !e.global }, 'traitement du frais').then(() => app.save('projects', p.id, hist(`Frais ${e.number} → ${e.global ? 'réparti sur les articles' : 'frais global'}`)))}>{e.global ? 'Global' : 'Réparti'} ⇄</button>
                     ) : (e.global ? 'Global' : 'Réparti')}</td>
+                    {app.isAdmin && <td className="td whitespace-nowrap"><button className="btn-ghost btn-sm" onClick={() => setExpEdit(e)} aria-label="Modifier">✎</button> <button className="btn-ghost btn-sm !text-blush-600" onClick={() => setExpDel(e)} aria-label="Supprimer">🗑</button></td>}
                   </tr>
                 ))}
               </Table>
@@ -258,6 +261,17 @@ export function ProjectDetail() {
       )}
 
       {modal === 'edit' && <ProjectForm project={p} onClose={() => setModal(null)} />}
+      {expEdit && <ExpenseModal expense={expEdit} onClose={() => setExpEdit(null)} />}
+      {expDel && (
+        <PasswordConfirm title="Supprimer cette dépense ?" confirmLabel="Supprimer définitivement" askReason verify={app.verifyPassword}
+          onConfirm={async (reason) => {
+            await app.removeExpense(expDel, reason)
+            await app.save('projects', p.id, hist(`Dépense ${expDel.number} supprimée (${expDel.category} ${expDel.amount} ${expDel.currency})${reason ? ' : ' + reason : ''}`))
+          }}
+          onClose={(done) => { setExpDel(null); if (done) app.notify('Dépense supprimée.') }}>
+          <p><b>{expDel.number}</b> — {expDel.category} : {money(expDel.amount, expDel.currency)} sera supprimée définitivement ; le coût du projet et les bénéfices se recalculent. Pour garder une trace, utilisez plutôt « Annuler » (page Dépenses).</p>
+        </PasswordConfirm>
+      )}
       {modal === 'delete' && (
         <PasswordConfirm title="Supprimer ce projet ?" confirmLabel="Mettre à la corbeille" askReason verify={app.verifyPassword}
           onConfirm={(reason) => app.trashProject(p, reason)}
@@ -459,11 +473,16 @@ function ReceiptsTab({ p, hist }) {
 function PurchaseTab({ p, hist }) {
   const app = useApp()
   const [pay, setPay] = useState(false)
+  const [payEdit, setPayEdit] = useState(null)
+  const [payDel, setPayDel] = useState(null)
   const s = purchaseSummary(p)
   if (p.noSupplier) return <Empty icon="truck">Ce projet regroupe le stock ajouté directement (sans fournisseur) : aucun achat ni paiement fournisseur à suivre.</Empty>
   const canPay = app.can('payments.write')
   async function addPayment(pm) {
     await app.save('projects', p.id, { supplierPayments: arrayUnion(pm), ...hist(`Paiement fournisseur ${pm.amount} ${pm.currency} (taux ${pm.rate})`) }, 'paiement fournisseur')
+  }
+  async function editPayment(pm) {
+    await app.save('projects', p.id, { supplierPayments: p.supplierPayments.map((x) => (x.id === pm.id ? pm : x)), ...hist(`Paiement fournisseur modifié : ${pm.amount} ${pm.currency} (taux ${pm.rate})`) }, 'modification paiement fournisseur')
   }
   async function cancel(pm) {
     const reason = window.prompt('Motif de l\'annulation (le paiement reste visible, barré) :')
@@ -487,13 +506,24 @@ function PurchaseTab({ p, hist }) {
                 <td className="td">{fdate(x.date)}</td><td className="td">{money(x.amount, x.currency)}<div className="text-xs text-neutral-500">taux {x.rate}</div></td>
                 <td className="td">{money(x.currency === p.currency ? x.amount : convert(x.amount, x.currency, p.currency, x.rate), p.currency)}</td>
                 <td className="td">{x.method}</td>
-                <td className="td">{canPay && x.status !== 'annule' && <button className="btn-ghost btn-sm" onClick={() => cancel(x)}>Annuler</button>}</td>
+                <td className="td"><div className="flex flex-wrap items-center gap-1">{canPay && x.status !== 'annule' && <button className="btn-ghost btn-sm" onClick={() => cancel(x)}>Annuler</button>}
+                  {app.isAdmin && <><button className="btn-ghost btn-sm" onClick={() => setPayEdit(x)} aria-label="Modifier">✎</button><button className="btn-ghost btn-sm !text-blush-600" onClick={() => setPayDel(x)} aria-label="Supprimer">🗑</button></>}</div></td>
               </tr>
             ))}
           </Table>
         </div>
       )}
       {pay && <PaymentModal title="Paiement fournisseur" opCurrency={p.currency} opRate={p.rate} remaining={s.balance} onSave={addPayment} onClose={() => setPay(false)} />}
+      {payEdit && <PaymentModal title="Modifier le paiement fournisseur" payment={payEdit} opCurrency={p.currency} opRate={p.rate} remaining={0} onSave={editPayment} onClose={() => setPayEdit(null)} />}
+      {payDel && (
+        <PasswordConfirm title="Supprimer ce paiement ?" confirmLabel="Supprimer définitivement" askReason verify={app.verifyPassword}
+          onConfirm={async (reason) => {
+            await app.save('projects', p.id, { supplierPayments: p.supplierPayments.filter((x) => x.id !== payDel.id), ...hist(`Paiement fournisseur supprimé : ${payDel.amount} ${payDel.currency} du ${fdate(payDel.date)}${reason ? ' — ' + reason : ''}`) }, 'suppression paiement fournisseur')
+          }}
+          onClose={(done) => { setPayDel(null); if (done) app.notify('Paiement supprimé.') }}>
+          <p>Le paiement de <b>{money(payDel.amount, payDel.currency)}</b> du {fdate(payDel.date)} sera supprimé définitivement et le solde fournisseur sera recalculé.</p>
+        </PasswordConfirm>
+      )}
     </div>
   )
 }
