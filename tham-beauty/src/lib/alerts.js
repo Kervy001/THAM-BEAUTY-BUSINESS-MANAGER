@@ -15,10 +15,10 @@ export const canSystemNotify = () => typeof window !== 'undefined' && 'Notificat
 export const systemNotifyState = () => (canSystemNotify() ? Notification.permission : 'unsupported')
 export async function askSystemNotify() { return canSystemNotify() ? Notification.requestPermission() : 'unsupported' }
 
-export function systemNotify(title, body) {
+export function systemNotify(title, body, tag = 'tb-sale') {
   try {
     if (!canSystemNotify() || Notification.permission !== 'granted') return
-    const opts = { body, icon: `${import.meta.env.BASE_URL}logo-sm.webp`, tag: 'tb-sale' }
+    const opts = { body, icon: `${import.meta.env.BASE_URL}logo-sm.webp`, tag }
     if (navigator.serviceWorker?.ready) navigator.serviceWorker.ready.then((r) => r.showNotification(title, opts)).catch(() => new Notification(title, opts))
     else new Notification(title, opts)
   } catch { /* silencieux */ }
