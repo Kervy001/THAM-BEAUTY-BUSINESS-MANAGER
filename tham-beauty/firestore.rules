@@ -17,6 +17,13 @@ service cloud.firestore {
     function saleFixed() { return isAdmin() || (request.resource.data.get('number', null) == resource.data.get('number', null) && request.resource.data.get('currency', null) == resource.data.get('currency', null) && request.resource.data.get('rate', null) == resource.data.get('rate', null) && request.resource.data.get('globalDiscount', null) == resource.data.get('globalDiscount', null) && request.resource.data.get('sellerId', null) == resource.data.get('sellerId', null)); }
     function notInitialized() { return !exists(/databases/$(database)/documents/settings/main); }
 
+    // ---- Messagerie interne ----
+    // Canaux communs : « general » (tous écrivent) et « announce » (l'administrateur publie, tous lisent)
+    function commonChat(c) { return c == 'general' || c == 'announce'; }
+    function chatDoc(c) { return get(/databases/$(database)/documents/chats/$(c)); }
+    function chatMember(c) { return active() && (commonChat(c) || (exists(/databases/$(database)/documents/chats/$(c)) && request.auth.uid in chatDoc(c).data.members)); }
+    function chatTouch() { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastMessage', 'lastAt']) && request.resource.data.lastMessage.by == request.auth.uid; }
+
     // Premier utilisateur = administrateur (uniquement tant que l'application n'est pas initialisée)
     match /users/{id} {
       allow read: if active() || (signedIn() && request.auth.uid == id);
@@ -90,6 +97,47 @@ service cloud.firestore {
       allow create: if can('sales.write') || can('sales.pay') || can('stock.write');
       allow update: if (can('sales.write') || can('sales.pay') || can('stock.write')) && trashUntouched() && saleGuard() && saleFixed();
       allow delete: if isAdmin(); // suppression définitive : administrateur seulement
+    }
+    match /chats/{chatId} {
+      allow read: if active() && (commonChat(chatId) || request.auth.uid in resource.data.members);
+      allow create: if active() && (
+        (chatId == 'general' && request.resource.data.type == 'general')
+        || (chatId == 'announce' && isAdmin() && request.resource.data.type == 'announce')
+        || (request.resource.data.type == 'dm' && request.resource.data.members.size() == 2 && request.auth.uid in request.resource.data.members
+            && request.resource.data.members[0] < request.resource.data.members[1]
+            && chatId == 'dm_' + request.resource.data.members[0] + '_' + request.resource.data.members[1])
+        || (request.resource.data.type == 'group' && isAdmin() && request.resource.data.createdBy == request.auth.uid)
+      );
+      allow update: if active() && (
+        (isAdmin() && resource.data.get('type', '') == 'group')
+        || (chatTouch() && (chatId == 'general' || (chatId == 'announce' && isAdmin()) || (!commonChat(chatId) && request.auth.uid in resource.data.members)))
+      );
+      allow delete: if isAdmin() && resource.data.get('type', '') == 'group';
+
+      match /messages/{mid} {
+        allow read: if chatMember(chatId);
+        allow create: if chatMember(chatId) && (chatId != 'announce' || isAdmin())
+          && request.resource.data.by == request.auth.uid
+          && request.resource.data.text is string && request.resource.data.text.size() <= 2000
+          && request.resource.data.get('image', '').size() <= 400000;
+        allow update: if false;
+        // Supprimer : son propre message ; l'administrateur peut aussi modérer groupes et canaux (jamais les conversations privées)
+        allow delete: if chatMember(chatId) && (resource.data.by == request.auth.uid || (isAdmin() && !chatId.matches('dm_.*')));
+      }
+      match /reads/{u} {
+        allow read: if chatMember(chatId);
+        allow write: if chatMember(chatId) && u == request.auth.uid;
+      }
+    }
+    // État « non lu » : strictement privé
+    match /chatState/{u} {
+      allow read, write: if active() && u == request.auth.uid;
+    }
+    // Boîtes (simulations de vente en gros) : brouillons, sans effet sur le stock ni les chiffres
+    match /bundles/{id} {
+      allow read: if can('bundles.write');
+      allow create, update: if can('bundles.write');
+      allow delete: if isAdmin() || (can('bundles.write') && resource.data.get('status', '') != 'vendu');
     }
     match /audit/{id} {
       allow read: if isAdmin() || can('finance.read');
