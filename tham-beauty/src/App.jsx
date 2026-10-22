@@ -2,6 +2,7 @@ import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
 import { useApp } from './lib/store.jsx'
+import { roleLabel } from './lib/perms.js'
 import { useTheme } from './lib/theme.js'
 import NotificationBell from './components/Notifications.jsx'
 import { LockScreen, PinRequired } from './components/LockScreen.jsx'
@@ -10,6 +11,7 @@ import Logo from './components/Logo.jsx'
 import Icon from './components/Icon.jsx'
 import { Toasts } from './components/ui.jsx'
 import Login from './pages/Login.jsx'
+import { ChatProvider, useChat } from './lib/chat.jsx'
 
 // Chaque page est chargée à la demande (code découpé) : l'écran d'accueil s'ouvre beaucoup plus vite.
 const loaders = {
@@ -28,7 +30,9 @@ const loaders = {
   Security: () => import('./pages/Security.jsx'),
   Receivables: () => import('./pages/Receivables.jsx'),
   Cash: () => import('./pages/Cash.jsx'),
-  Inventory: () => import('./pages/Inventory.jsx')
+  Inventory: () => import('./pages/Inventory.jsx'),
+  Messages: () => import('./pages/Messages.jsx'),
+  Bundles: () => import('./pages/Bundles.jsx')
 }
 // La page d'accueil commence à se télécharger tout de suite, pendant que la connexion se vérifie.
 setTimeout(() => { loaders.Dashboard().catch(() => {}) }, 0)
@@ -53,6 +57,22 @@ const Security = page('Security')
 const Receivables = page('Receivables')
 const Cash = page('Cash')
 const Inventory = page('Inventory')
+const Messages = page('Messages')
+const Bundles = page('Bundles', 'Bundles')
+const BundleEditor = page('Bundles', 'BundleEditor')
+
+function ChatMenuDot() {
+  const ch = useChat()
+  return ch?.unreadCount ? <span className="absolute left-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-gold-400 ring-2 ring-paper" /> : null
+}
+
+// Pastille « messages non lus » (doit être rendue sous ChatProvider)
+function ChatBadge({ dot, className = '' }) {
+  const ch = useChat()
+  const n = ch?.unreadCount || 0
+  if (!n) return null
+  return dot ? <span className="absolute -right-1.5 -top-1 h-2.5 w-2.5 rounded-full bg-blush-500 ring-2 ring-ink" /> : <span className={'ml-auto grid h-5 min-w-[1.25rem] place-items-center rounded-full bg-blush-500 px-1.5 text-[10px] font-bold text-white ' + className}>{n}</span>
+}
 
 function PageLoading() {
   return <div className="grid min-h-[40vh] place-items-center"><div className="h-7 w-7 animate-spin rounded-full border-2 border-gold-300 border-t-transparent" /></div>
@@ -61,8 +81,10 @@ function PageLoading() {
 const GROUPS = [
   { title: 'Activité', items: [
     { to: '/', label: 'Tableau de bord', icon: 'home', end: true },
+    { to: '/messages', label: 'Messages', icon: 'chat' },
     { to: '/ventes', label: 'Ventes', icon: 'receipt', perm: ['sales.write', 'sales.pay', 'finance.read'] },
     { to: '/stock', label: 'Stock', icon: 'layers', perm: ['stock.read', 'stock.write'] },
+    { to: '/boites', label: 'Boîtes (gros)', icon: 'package', perm: ['bundles.write'] },
     { to: '/clients', label: 'Clients', icon: 'users', perm: ['customers.write', 'sales.write', 'finance.read'] },
     { to: '/creances', label: 'Créances', icon: 'wallet', perm: ['sales.pay', 'sales.write', 'finance.read'] },
     { to: '/caisse', label: 'Clôture de caisse', icon: 'receipt', perm: ['sales.pay', 'sales.write', 'finance.read'] }
@@ -164,18 +186,20 @@ export default function App() {
       {({ isActive }) => (<>
         {isActive && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-gradient-to-b from-gold-200 to-gold-500" />}
         <Icon name={n.icon} size={18} />{n.label}
+        {n.to === '/messages' && <ChatBadge />}
         {badgeOf(n.to) > 0 && <span className={'ml-auto grid h-5 min-w-[1.25rem] place-items-center rounded-full px-1.5 text-[10px] font-bold ' + (n.to === '/ventes' ? 'bg-blush-500 text-white' : 'bg-white/10 text-neutral-300')}>{badgeOf(n.to)}</span>}
       </>)}
     </NavLink>
   )
   const tabLink = (n) => (
     <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => 'flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-semibold ' + (isActive ? 'text-gold-300' : 'text-neutral-500')}>
-      <span className="relative"><Icon name={n.icon} size={21} />{badgeOf(n.to) > 0 && <span className="absolute -right-1.5 -top-1 h-2.5 w-2.5 rounded-full bg-blush-500 ring-2 ring-ink" />}</span>{n.label === 'Tableau de bord' ? 'Accueil' : n.label}
+      <span className="relative"><Icon name={n.icon} size={21} />{n.to === '/messages' && <ChatBadge dot />}{badgeOf(n.to) > 0 && <span className="absolute -right-1.5 -top-1 h-2.5 w-2.5 rounded-full bg-blush-500 ring-2 ring-ink" />}</span>{n.label === 'Tableau de bord' ? 'Accueil' : n.label}
     </NavLink>
   )
   const initial = (app.profile.name || app.profile.email || '?').trim().charAt(0).toUpperCase()
 
   return (
+    <ChatProvider>
     <div className="min-h-screen lg:flex">
       <aside className={'no-print fixed inset-y-0 left-0 z-40 flex w-72 flex-col overflow-y-auto bg-ink p-4 transition-transform duration-200 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ' + (open ? 'translate-x-0 shadow-pop' : '-translate-x-full')}
         style={{ backgroundImage: 'radial-gradient(120% 60% at 50% -10%, rgba(201,154,62,.22), transparent 60%)' }}>
@@ -196,7 +220,7 @@ export default function App() {
           <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-b from-gold-300 to-gold-600 font-bold text-ink">{initial}</div>
           <div className="min-w-0 flex-1 text-xs">
             <div className="truncate font-semibold text-neutral-100">{app.profile.name || app.profile.email}</div>
-            <div className="truncate text-neutral-500">{app.profile.role}</div>
+            <div className="truncate text-neutral-500">{roleLabel(app.settings, app.profile.role)}</div>
           </div>
           {lock.pinSet && <button className="rounded-lg p-2 text-neutral-400 hover:bg-white/10 hover:text-gold-300" onClick={() => window.dispatchEvent(new Event('tb-lock-now'))} aria-label="Verrouiller"><Icon name="lock" size={17} /></button>}
           <NotificationBell light className="rounded-lg p-2 text-neutral-400 hover:bg-white/10 hover:text-gold-300" />
@@ -210,7 +234,7 @@ export default function App() {
         <SyncBar online={app.online} hasPending={app.hasPending} />
         <header className="no-print sticky top-0 z-20 flex items-center gap-3 border-b border-line bg-paper/90 px-4 py-2.5 backdrop-blur lg:hidden">
           <button type="button" className="relative -ml-1.5 grid h-10 w-10 shrink-0 place-items-center rounded-xl text-neutral-900 hover:bg-black/5 active:bg-black/10" onClick={() => setOpen(true)} aria-label="Ouvrir le menu">
-            <Icon name="menu" size={23} />
+            <Icon name="menu" size={23} /><ChatMenuDot />
             {requestCount > 0 && <span className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-blush-500 ring-2 ring-paper" />}
           </button>
           <Logo size={34} />
@@ -244,6 +268,10 @@ export default function App() {
             <Route path="/creances" element={<Receivables />} />
             <Route path="/caisse" element={<Cash />} />
             <Route path="/inventaire" element={<Inventory />} />
+            <Route path="/boites" element={<Bundles />} />
+            <Route path="/boites/:id" element={<BundleEditor />} />
+            <Route path="/messages" element={<Messages />} />
+            <Route path="/messages/:id" element={<Messages />} />
             <Route path="/corbeille" element={app.isAdmin ? <Trash /> : <Navigate to="/" />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
@@ -265,5 +293,6 @@ export default function App() {
       {lock.locked && <LockScreen uid={app.authUser.uid} name={app.profile.name} onUnlock={lock.unlock} onLogout={app.logout} verifyPassword={app.verifyPassword} />}
       {!lock.locked && app.settings?.security?.requirePin && !lock.pinSet && <PinRequired uid={app.authUser.uid} name={app.profile.name} onLogout={app.logout} onDone={() => window.dispatchEvent(new Event('tb-security-changed'))} />}
     </div>
+    </ChatProvider>
   )
 }
