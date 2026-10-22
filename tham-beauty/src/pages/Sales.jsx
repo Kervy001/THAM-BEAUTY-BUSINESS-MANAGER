@@ -11,6 +11,7 @@ import PaymentModal from '../components/PaymentModal.jsx'
 import Scanner from '../components/Scanner.jsx'
 import { reminderMessage, saleMessage, waLink } from '../lib/whatsapp.js'
 import { lookupCode, stockMatchesFor } from '../lib/codes.js'
+import { allocateForSale, bundleCandidates } from '../lib/bundles.js'
 
 // Articles réellement en stock (reçus et non épuisés), quel que soit le statut du projet (sauf archivé).
 // `include` : identifiants d'articles à garder même à 0 en stock (articles déjà présents dans une vente à modifier).
@@ -117,6 +118,35 @@ export function NewSale() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wanted, stockOptions.length])
 
+  // Conversion d'une boîte (vente en gros) : /ventes/nouvelle?boite=ID. Le prix de la boîte est réparti sur les articles ;
+  // la vente passe ensuite par les mêmes contrôles que toute vente (stock, réductions, paiement).
+  const boiteId = params.get('boite')
+  const boite = boiteId ? app.D.bundles.find((b) => b.id === boiteId) : null
+  const boiteDone = useRef(false)
+  useEffect(() => {
+    if (!boite || boiteDone.current || !stockOptions.length) return
+    boiteDone.current = true
+    if (boite.status === 'vendu') { setErr(`La boîte ${boite.number} a déjà été vendue.`); return }
+    const rate = Number(f.rate) || app.rate
+    const cands = bundleCandidates(app.D, app.costing, { currency: boite.currency, rate, ref: app.ref })
+    const alloc = allocateForSale(boite.lines || [], cands, boite.price)
+    const opts = Object.fromEntries(stockOptions.map((o) => [o.it.id, o]))
+    const missing = []
+    const next = []
+    ;(boite.lines || []).forEach((bl) => {
+      const a = alloc.find((x) => x.itemId === bl.itemId)
+      const o = opts[bl.itemId]
+      if (!a || !o) { missing.push(bl.label); return }
+      if (a.qty > o.remaining) missing.push(`${bl.label} (stock ${o.remaining}/${a.qty})`)
+      next.push({ id: uid(), projectId: o.p.id, itemId: o.it.id, label: o.it.label, sku: o.it.sku || '', qty: String(Math.min(a.qty, o.remaining)), unitPrice: String(a.unitPrice), dType: 'fixed', dValue: '', max: o.remaining, projectNumber: o.p.number })
+    })
+    setLines(next)
+    setF((x) => ({ ...x, currency: boite.currency, customerId: boite.customerId || '', customerName: boite.customerName || '', notes: `Boîte ${boite.number}${boite.name ? ' — ' + boite.name : ''}` }))
+    setPay((x) => ({ ...x, currency: boite.currency }))
+    if (missing.length) setErr(`Stock insuffisant ou article indisponible : ${missing.join(', ')}. Corrigez la boîte ou ajustez les quantités.`)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boite?.id, stockOptions.length])
+
   linesRef.current = lines
   // Scan d'un code-barres / QR : l'article est ajouté automatiquement (prix prévu, stock, lot) ; chaque nouveau scan = +1.
   function onScan(code) {
@@ -164,12 +194,14 @@ export function NewSale() {
           id: l.id, projectId: l.projectId, itemId: l.itemId, label: l.label, sku: l.sku, qty: l.qty, unitPrice: l.unitPrice, discount: l.discount, qtyReturned: 0,
           costSnapshot: app.costing[l.projectId]?.perItem?.[l.itemId]?.unitCostRef || 0
         })),
+        ...(boite ? { bundleId: boite.id, bundleNumber: boite.number } : {}),
         payments: [], returns: []
       }
       if (Number(pay.amount) > 0) {
         sale.payments.push({ id: uid(), type: 'payment', date: f.date, amount: Number(pay.amount), currency: pay.currency, rate: Number(pay.rate), method: pay.method, status: 'valide', by: app.profile?.name || '', at: nowIso() })
       }
       const id = await app.save('sales', null, sale, 'vente')
+      if (boite) { try { await app.save('bundles', boite.id, { status: 'vendu', saleId: id, soldAt: nowIso() }, 'boîte vendue') } catch { /* la vente est enregistrée ; la boîte pourra être marquée à la main */ } }
       app.pushSaleNotification(sale, id, t.netKept) // alerte aux administrateurs
       if (!app.online) app.notify('Vente enregistrée sur l\u2019appareil — elle sera synchronisée au retour d\u2019Internet.', 'warn')
       nav(`/ventes/${id}`, { replace: true })

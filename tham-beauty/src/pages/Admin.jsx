@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { createUserWithEmailAndPassword } from 'firebase/auth'
-import { doc, setDoc } from 'firebase/firestore'
+import { deleteField, doc, setDoc } from 'firebase/firestore'
 import { db, withSecondaryAuth } from '../lib/firebase.js'
 import { useApp } from '../lib/store.jsx'
-import { PERMS, ROLES } from '../lib/perms.js'
+import { PERMS, ROLES, rolesOf } from '../lib/perms.js'
 import { fdt, nowIso, today, uid as newId } from '../lib/util.js'
 import { LOCK_CHOICES } from '../lib/security.js'
 import { Badge, Empty, Input, Modal, Notice, NumberInput, PageHeader, PasswordConfirm, Select, Table, Tabs, Textarea } from '../components/ui.jsx'
@@ -13,15 +13,90 @@ import { receiptLogo } from '../components/Logo.jsx'
 export default function Admin() {
   const app = useApp()
   const [tab, setTab] = useState(app.can('users.manage') ? 'Utilisateurs' : 'Réglages')
-  const tabs = [...(app.can('users.manage') ? ['Utilisateurs'] : []), ...(app.can('settings.manage') ? ['Réglages'] : []), ...(app.isAdmin ? ['Sauvegarde'] : []), 'Historique']
+  const tabs = [...(app.can('users.manage') ? ['Utilisateurs'] : []), ...(app.can('settings.manage') ? ['Rôles'] : []), ...(app.can('settings.manage') ? ['Réglages'] : []), ...(app.isAdmin ? ['Sauvegarde'] : []), 'Historique']
   return (
     <>
       <PageHeader title="Utilisateurs & réglages" />
       <Tabs tabs={tabs} value={tab} onChange={setTab} />
       {tab === 'Utilisateurs' && <Users />}
+      {tab === 'Rôles' && <RolesTab />}
       {tab === 'Réglages' && <Settings />}
       {tab === 'Sauvegarde' && app.isAdmin && <Backup />}
       {tab === 'Historique' && <Audit />}
+    </>
+  )
+}
+
+function RolesTab() {
+  const app = useApp()
+  const roles = rolesOf(app.settings)
+  const [edit, setEdit] = useState(null)
+  const [err, setErr] = useState('')
+  const [busy, setBusy] = useState(false)
+  const countOf = (id) => app.D.users.filter((u) => u.role === id).length
+  const togglePerm = (k) => setEdit((e) => ({ ...e, perms: e.perms.includes(k) ? e.perms.filter((x) => x !== k) : [...e.perms, k] }))
+
+  async function save(e) {
+    e.preventDefault()
+    setErr('')
+    const label = edit.label.trim()
+    if (!label) return setErr('Donnez un nom au rôle.')
+    if (Object.entries(roles).some(([id, r]) => id !== edit.id && r.label.toLowerCase() === label.toLowerCase())) return setErr('Un rôle porte déjà ce nom.')
+    setBusy(true)
+    try {
+      const id = edit.id || 'r_' + newId()
+      await app.saveSettings({ roles: { [id]: { label, perms: edit.perms.filter((p) => p in PERMS) } } }, edit.id ? 'rôle modifié' : 'rôle créé')
+      setEdit(null)
+    } catch (ex) { setErr(ex.message) } finally { setBusy(false) }
+  }
+  async function remove(id, r) {
+    if (countOf(id)) return window.alert(`${countOf(id)} utilisateur(s) ont encore ce rôle. Changez d'abord leur rôle (onglet Utilisateurs).`)
+    if (!window.confirm(`Supprimer le rôle « ${r.label} » ?`)) return
+    try { await app.saveSettings({ roles: { [id]: ROLES[id] ? { deleted: true } : deleteField() } }, 'rôle supprimé') } catch (ex) { window.alert(ex.message) }
+  }
+  async function reset(id) {
+    if (!window.confirm('Revenir aux autorisations d\'origine de ce rôle ?')) return
+    try { await app.saveSettings({ roles: { [id]: deleteField() } }, 'rôle réinitialisé') } catch (ex) { window.alert(ex.message) }
+  }
+  const deleted = Object.keys(ROLES).filter((id) => id !== 'admin' && app.settings?.roles?.[id]?.deleted)
+
+  return (
+    <>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <p className="max-w-xl text-xs text-neutral-500">Un rôle est un <b>modèle</b> d'autorisations. Quand vous créez un utilisateur et choisissez un rôle, ses autorisations sont préremplies (vous pouvez encore les ajuster pour lui). Modifier un rôle ne change <b>pas</b> les utilisateurs qui l'ont déjà.</p>
+        <button className="btn-gold" onClick={() => setEdit({ label: '', perms: [] })}>+ Nouveau rôle</button>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {Object.entries(roles).map(([id, r]) => (
+          <div key={id} className="card space-y-2">
+            <div className="flex items-start justify-between gap-2">
+              <div><div className="font-semibold">{r.label}</div><div className="text-xs text-neutral-500">{countOf(id)} utilisateur(s){id === 'admin' ? ' · toutes les autorisations' : r.custom ? ' · rôle personnalisé' : r.edited ? ' · modifié' : ' · par défaut'}</div></div>
+              {id !== 'admin' && <div className="flex shrink-0 gap-1">
+                <button className="btn-ghost btn-sm" onClick={() => setEdit({ id, label: r.label, perms: [...r.perms] })}>Modifier</button>
+                <button className="btn-ghost btn-sm !text-blush-600" onClick={() => remove(id, r)} aria-label="Supprimer"><Icon name="trash" size={14} /></button>
+              </div>}
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {id === 'admin' ? <Badge tone="amber">Accès complet</Badge> : r.perms.length ? r.perms.map((p) => <Badge key={p}>{PERMS[p]}</Badge>) : <span className="text-xs text-neutral-400">Aucune autorisation</span>}
+            </div>
+            {r.edited && <button className="text-[11px] text-neutral-500 underline" onClick={() => reset(id)}>Revenir aux autorisations d'origine</button>}
+          </div>
+        ))}
+      </div>
+      {deleted.length > 0 && <p className="mt-3 text-xs text-neutral-500">Rôles par défaut supprimés : {deleted.map((id) => <button key={id} className="mr-2 underline" onClick={() => reset(id)}>{ROLES[id].label} (rétablir)</button>)}</p>}
+      {edit && (
+        <Modal wide title={edit.id ? 'Modifier le rôle' : 'Nouveau rôle'} onClose={() => setEdit(null)}>
+          <form onSubmit={save} className="space-y-3">
+            <Input label="Nom du rôle" value={edit.label} maxLength={40} onChange={(e) => setEdit({ ...edit, label: e.target.value })} placeholder="ex. Vendeur en gros" required />
+            <div className="rounded-lg border p-3">
+              <div className="mb-2 flex items-center justify-between text-sm font-medium"><span>Autorisations</span><span className="text-xs font-normal text-neutral-500">{edit.perms.length} / {Object.keys(PERMS).length}</span></div>
+              <div className="grid gap-1 sm:grid-cols-2">{Object.entries(PERMS).map(([k, l]) => <label key={k} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={edit.perms.includes(k)} onChange={() => togglePerm(k)} />{l}</label>)}</div>
+            </div>
+            {err && <div className="text-sm text-red-600">{err}</div>}
+            <button className="btn-primary w-full" disabled={busy}>{busy ? '…' : 'Enregistrer le rôle'}</button>
+          </form>
+        </Modal>
+      )}
     </>
   )
 }
@@ -31,6 +106,7 @@ function Users() {
   const [edit, setEdit] = useState(null)
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
+  const roles = rolesOf(app.settings)
 
   async function submit(e) {
     e.preventDefault()
@@ -50,15 +126,15 @@ function Users() {
     } catch (ex) { setErr(ex.code === 'auth/email-already-in-use' ? 'Adresse déjà utilisée.' : ex.code === 'auth/weak-password' ? 'Mot de passe trop court (8 caractères minimum).' : ex.message) } finally { setBusy(false) }
   }
   const togglePerm = (k) => setEdit({ ...edit, perms: edit.perms.includes(k) ? edit.perms.filter((x) => x !== k) : [...edit.perms, k] })
-  const setRole = (role) => setEdit({ ...edit, role, perms: [...ROLES[role].perms] })
+  const setRole = (role) => setEdit({ ...edit, role, perms: [...(roles[role]?.perms || [])] })
 
   return (
     <>
-      <div className="mb-3 flex justify-end"><button className="btn-gold" onClick={() => setEdit({ name: '', email: '', password: '', role: 'commercial', perms: [...ROLES.commercial.perms] })}>+ Utilisateur</button></div>
+      <div className="mb-3 flex justify-end"><button className="btn-gold" onClick={() => setEdit({ name: '', email: '', password: '', role: roles.commercial ? 'commercial' : Object.keys(roles).find((k) => k !== 'admin') || 'admin', perms: [...(roles.commercial || roles[Object.keys(roles).find((k) => k !== 'admin')] || { perms: [] }).perms] })}>+ Utilisateur</button></div>
       <div className="card !p-2">
         <Table head={['Nom', 'E-mail', 'Rôle', 'Statut', '']}>
           {app.D.users.map((u) => (
-            <tr key={u.id}><td className="td font-medium">{u.name}</td><td className="td">{u.email}</td><td className="td">{ROLES[u.role]?.label || u.role}</td>
+            <tr key={u.id}><td className="td font-medium">{u.name}</td><td className="td">{u.email}</td><td className="td">{roles[u.role]?.label || ROLES[u.role]?.label || u.role}</td>
               <td className="td">{u.active === false ? <Badge tone="red">Désactivé</Badge> : <Badge tone="green">Actif</Badge>}</td>
               <td className="td"><button className="btn-ghost btn-sm" onClick={() => setEdit({ ...u, perms: u.perms || [] })}>Modifier</button></td></tr>
           ))}
@@ -72,7 +148,7 @@ function Users() {
               <Input label="Nom" value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} required />
               <Input label="E-mail" type="email" value={edit.email} onChange={(e) => setEdit({ ...edit, email: e.target.value })} required disabled={!!edit.id} />
               {!edit.id && <Input label="Mot de passe initial" type="text" value={edit.password} onChange={(e) => setEdit({ ...edit, password: e.target.value })} required minLength={8} />}
-              <Select label="Rôle (préréglage des autorisations)" value={edit.role} onChange={setRole} options={Object.entries(ROLES).map(([value, r]) => ({ value, label: r.label }))} />
+              <Select label="Rôle (préréglage des autorisations)" value={edit.role} onChange={setRole} options={[...Object.entries(roles).filter(([k]) => app.isAdmin || k !== 'admin'), ...(!roles[edit.role] && edit.role ? [[edit.role, { label: `${edit.role} (supprimé)` }]] : [])].map(([value, r]) => ({ value, label: r.label }))} />
               {app.multiLoc && <Select label="Point de vente attitré (facultatif)" value={edit.locationId || ''} onChange={(v) => setEdit({ ...edit, locationId: v })} placeholder="— libre : peut choisir —" options={app.locations.map((l) => ({ value: l.id, label: l.name }))} />}
               {edit.id && edit.id !== app.authUser.uid && <Select label="Compte" value={edit.active === false ? 'non' : 'oui'} onChange={(v) => setEdit({ ...edit, active: v === 'oui' })} options={[{ value: 'oui', label: 'Actif' }, { value: 'non', label: 'Désactivé' }]} />}
             </div>
