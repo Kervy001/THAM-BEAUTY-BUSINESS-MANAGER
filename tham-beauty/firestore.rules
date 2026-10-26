@@ -139,6 +139,11 @@ service cloud.firestore {
       allow create, update: if can('bundles.write');
       allow delete: if isAdmin() || (can('bundles.write') && resource.data.get('status', '') != 'vendu');
     }
+    // Fonds de réinvestissement : strictement administrateur (on annule par statut, jamais de suppression)
+    match /fundMoves/{id} {
+      allow read, create, update: if isAdmin();
+      allow delete: if false;
+    }
     match /audit/{id} {
       allow read: if isAdmin() || can('finance.read');
       allow create: if active() && request.resource.data.get('userId', request.auth.uid) == request.auth.uid;
