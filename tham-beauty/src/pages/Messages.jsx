@@ -125,7 +125,7 @@ function Conversation({ chat, onBack }) {
     setBusy(true); setErr('')
     const t = text
     setText('')
-    try { await c.send(chat, { text: t }) } catch (ex) { setErr(ex.code === 'permission-denied' ? 'Envoi refusé.' : ex.message); setText(t) } finally { setBusy(false) }
+    try { await c.send(chat, { text: t }) } catch (ex) { setErr(ex.code === 'permission-denied' ? `Envoi refusé par Firebase (étape : ${ex.step || '?'}). Vérifiez que les règles Firestore (Mizajou 14+) sont publiées.` : ex.message); setText(t) } finally { setBusy(false) }
   }
   async function pickImage(e) {
     const f = e.target.files?.[0]

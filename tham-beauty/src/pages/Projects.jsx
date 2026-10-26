@@ -487,6 +487,7 @@ function PurchaseTab({ p, hist }) {
   async function cancel(pm) {
     const reason = window.prompt('Motif de l\'annulation (le paiement reste visible, barré) :')
     if (!reason) return
+    if (pm.fundMoveId) await app.save('fundMoves', pm.fundMoveId, { status: 'annule', cancelReason: reason }, 'réinvestissement annulé') // l'argent retourne dans le fonds
     await app.save('projects', p.id, { supplierPayments: p.supplierPayments.map((x) => (x.id === pm.id ? { ...x, status: 'annule', cancelReason: reason } : x)), ...hist(`Paiement fournisseur annulé : ${reason}`) }, 'annulation paiement fournisseur')
   }
   return (
@@ -505,9 +506,9 @@ function PurchaseTab({ p, hist }) {
               <tr key={x.id} className={x.status === 'annule' ? 'opacity-50 line-through' : ''}>
                 <td className="td">{fdate(x.date)}</td><td className="td">{money(x.amount, x.currency)}<div className="text-xs text-neutral-500">taux {x.rate}</div></td>
                 <td className="td">{money(x.currency === p.currency ? x.amount : convert(x.amount, x.currency, p.currency, x.rate), p.currency)}</td>
-                <td className="td">{x.method}</td>
-                <td className="td"><div className="flex flex-wrap items-center gap-1">{canPay && x.status !== 'annule' && <button className="btn-ghost btn-sm" onClick={() => cancel(x)}>Annuler</button>}
-                  {app.isAdmin && <><button className="btn-ghost btn-sm" onClick={() => setPayEdit(x)} aria-label="Modifier">✎</button><button className="btn-ghost btn-sm !text-blush-600" onClick={() => setPayDel(x)} aria-label="Supprimer">🗑</button></>}</div></td>
+                <td className="td">{x.fundMoveId ? <Badge tone="amber">Fonds réinvestissement</Badge> : x.method}</td>
+                <td className="td"><div className="flex flex-wrap items-center gap-1">{canPay && x.status !== 'annule' && (!x.fundMoveId || app.isAdmin) && <button className="btn-ghost btn-sm" onClick={() => cancel(x)}>Annuler</button>}
+                  {app.isAdmin && <>{!x.fundMoveId && <button className="btn-ghost btn-sm" onClick={() => setPayEdit(x)} aria-label="Modifier">✎</button>}<button className="btn-ghost btn-sm !text-blush-600" onClick={() => setPayDel(x)} aria-label="Supprimer">🗑</button></>}</div></td>
               </tr>
             ))}
           </Table>
@@ -518,6 +519,7 @@ function PurchaseTab({ p, hist }) {
       {payDel && (
         <PasswordConfirm title="Supprimer ce paiement ?" confirmLabel="Supprimer définitivement" askReason verify={app.verifyPassword}
           onConfirm={async (reason) => {
+            if (payDel.fundMoveId) await app.save('fundMoves', payDel.fundMoveId, { status: 'annule', cancelReason: 'paiement supprimé' }, 'réinvestissement annulé')
             await app.save('projects', p.id, { supplierPayments: p.supplierPayments.filter((x) => x.id !== payDel.id), ...hist(`Paiement fournisseur supprimé : ${payDel.amount} ${payDel.currency} du ${fdate(payDel.date)}${reason ? ' — ' + reason : ''}`) }, 'suppression paiement fournisseur')
           }}
           onClose={(done) => { setPayDel(null); if (done) app.notify('Paiement supprimé.') }}>

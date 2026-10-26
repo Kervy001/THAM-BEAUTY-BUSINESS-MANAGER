@@ -3,9 +3,10 @@ import { Link } from 'react-router-dom'
 import { useApp } from '../lib/store.jsx'
 import { periodRange, convert, commissionOf, sellerStats, markupPct, pctSub, round2 } from '../lib/calc.js'
 import { computeMetrics } from '../lib/metrics.js'
-import { fdate, money, sellerOf, today } from '../lib/util.js'
+import { fundConfig, fundSummary } from '../lib/fund.js'
+import { fdate, sellerOf, today } from '../lib/util.js'
 import Icon from '../components/Icon.jsx'
-import { Dropdown, Empty, Ledger, MoneyRow, PageHeader, Popover, Row } from '../components/ui.jsx'
+import { Dropdown, Empty, Ledger, MoneyRow, PageHeader, Popover, PrivacyCtx, Row, useMoney, usePrivacy } from '../components/ui.jsx'
 
 export const PERIODS = [
   { value: 'jour', label: "Aujourd'hui" }, { value: 'semaine', label: 'Cette semaine' }, { value: 'mois', label: 'Ce mois' },
@@ -65,13 +66,14 @@ export function FilterBar({ F }) {
 }
 
 function Bars({ data, cur }) {
+  const fm = useMoney()
   const entries = Object.entries(data).sort((a, b) => a[0].localeCompare(b[0])).slice(-14)
   if (!entries.length) return <Empty icon="chart">Aucune vente sur la période.</Empty>
   const max = Math.max(...entries.map((e) => e[1]), 1)
   return (
     <div className="flex h-40 items-end gap-2">
       {entries.map(([d, v]) => (
-        <div key={d} className="group flex h-full min-w-0 max-w-[64px] flex-1 flex-col items-center justify-end" title={`${fdate(d)} : ${money(v, cur)}`}>
+        <div key={d} className="group flex h-full min-w-0 max-w-[64px] flex-1 flex-col items-center justify-end" title={`${fdate(d)} : ${fm(v, cur)}`}>
           <div className="w-full rounded-t-lg bg-gradient-to-t from-gold-600 via-gold-400 to-gold-200 transition group-hover:from-blush-500 group-hover:to-blush-400" style={{ height: `${Math.max(5, (v / max) * 100)}%` }} />
           <div className="mt-1.5 text-[10px] text-neutral-400">{new Date(d).getDate()}/{new Date(d).getMonth() + 1}</div>
         </div>
@@ -81,11 +83,18 @@ function Bars({ data, cur }) {
 }
 
 export default function Dashboard() {
+  const [hidden, toggle] = usePrivacy()
+  return <PrivacyCtx.Provider value={hidden}><DashboardInner hidden={hidden} toggle={toggle} /></PrivacyCtx.Provider>
+}
+
+function DashboardInner({ hidden, toggle }) {
+  const fm = useMoney()
   const app = useApp()
   const F = useFilters()
   const fin = app.can('finance.read')
   const m = useMemo(() => computeMetrics({ D: app.D, costing: app.costing, ref: app.ref, rate: app.rate, settings: app.settings }, { range: F.range, ...F.flt }), [app.D, app.costing, app.ref, app.rate, app.settings, F.range, F.flt])
   const r = app.ref
+  const fund = useMemo(() => (app.isAdmin ? fundSummary(app.D, app.costing, app.ref, fundConfig(app.settings)) : null), [app.isAdmin, app.D, app.costing, app.ref, app.settings])
   const recentSales = [...app.D.sales].sort((a, b) => (b.createdAt || b.date || '').localeCompare(a.createdAt || a.date || '')).slice(0, 5)
   const recentExp = [...app.D.expenses].filter((e) => e.status !== 'annule').sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 5)
   const hello = (app.profile?.name || '').split(' ')[0]
@@ -101,18 +110,26 @@ export default function Dashboard() {
       {/* Bandeau principal */}
       <div className="relative mb-5 overflow-hidden rounded-3xl bg-ink p-5 text-white shadow-pop sm:p-7"
         style={{ backgroundImage: 'radial-gradient(80% 120% at 100% 0%, rgba(201,154,62,.32), transparent 55%), radial-gradient(60% 100% at 0% 100%, rgba(240,86,143,.16), transparent 60%)' }}>
+        <button type="button" onClick={toggle} className="absolute right-3 top-3 grid h-10 w-10 place-items-center rounded-full text-gold-300 hover:bg-white/10 active:bg-white/15" aria-label={hidden ? 'Afficher les montants' : 'Masquer les montants'} title={hidden ? 'Afficher les montants' : 'Masquer les montants'}><Icon name={hidden ? 'eyeoff' : 'eye'} size={21} /></button>
         <div className="text-sm font-medium text-gold-300">Chiffre d'affaires net</div>
-        <div className="mt-2 text-4xl font-bold tracking-tight sm:text-5xl"><span className="gold-text">{money(m.net, r)}</span></div>
-        <div className="mt-1 text-sm text-neutral-400">{m.nbSales} vente{m.nbSales > 1 ? 's' : ''} · panier moyen {money(m.avgBasket, r)} · réductions {money(m.discount, r)}</div>
+        <div className="mt-2 text-4xl font-bold tracking-tight sm:text-5xl"><span className="gold-text">{fm(m.net, r)}</span></div>
+        <div className="mt-1 text-sm text-neutral-400">{m.nbSales} vente{m.nbSales > 1 ? 's' : ''} · panier moyen {fm(m.avgBasket, r)} · réductions {fm(m.discount, r)}</div>
         <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {fin && <div className="rounded-2xl bg-white/[0.06] p-3 ring-1 ring-white/10"><div className="text-xs text-neutral-400">Bénéfice réalisé</div><div className={'mt-1 text-lg font-semibold ' + (m.grossProfit >= 0 ? 'text-emerald-300' : 'text-blush-400')}>{money(m.grossProfit, r)}</div>{markupPct(m.net, m.cogs) != null && <div className="text-[11px] text-neutral-400">{markupPct(m.net, m.cogs) > 0 ? '+' : ''}{round2(markupPct(m.net, m.cogs))} % sur coût</div>}</div>}
-          {fin && <div className="rounded-2xl bg-white/[0.06] p-3 ring-1 ring-white/10"><div className="text-xs text-neutral-400">Encaissements</div><div className="mt-1 text-lg font-semibold">{money(m.cashIn, r)}</div></div>}
-          {fin && <div className="rounded-2xl bg-white/[0.06] p-3 ring-1 ring-white/10"><div className="text-xs text-neutral-400">Créances clients</div><div className="mt-1 text-lg font-semibold">{money(m.receivables, r)}</div></div>}
+          {fin && <div className="rounded-2xl bg-white/[0.06] p-3 ring-1 ring-white/10"><div className="text-xs text-neutral-400">Bénéfice réalisé</div><div className={'mt-1 text-lg font-semibold ' + (m.grossProfit >= 0 ? 'text-emerald-300' : 'text-blush-400')}>{fm(m.grossProfit, r)}</div>{markupPct(m.net, m.cogs) != null && <div className="text-[11px] text-neutral-400">{markupPct(m.net, m.cogs) > 0 ? '+' : ''}{round2(markupPct(m.net, m.cogs))} % sur coût</div>}</div>}
+          {fin && <div className="rounded-2xl bg-white/[0.06] p-3 ring-1 ring-white/10"><div className="text-xs text-neutral-400">Encaissements</div><div className="mt-1 text-lg font-semibold">{fm(m.cashIn, r)}</div></div>}
+          {fin && <div className="rounded-2xl bg-white/[0.06] p-3 ring-1 ring-white/10"><div className="text-xs text-neutral-400">Créances clients</div><div className="mt-1 text-lg font-semibold">{fm(m.receivables, r)}</div></div>}
           <div className="rounded-2xl bg-white/[0.06] p-3 ring-1 ring-white/10"><div className="text-xs text-neutral-400">Articles en stock</div><div className="mt-1 text-lg font-semibold">{m.available}</div></div>
         </div>
       </div>
 
-      <div className="card mb-5"><div className="mb-3 font-display text-base font-semibold">Ventes nettes par jour</div><Bars data={m.byDay} cur={r} /></div>
+      {fund && (
+        <Link to="/fonds" className="card mb-5 flex items-center justify-between gap-3 transition hover:ring-1 hover:ring-gold-400/60">
+          <div><div className="text-xs text-neutral-500">Fonds de réinvestissement disponible</div><div className="mt-1 text-xl font-semibold text-gold-700">{fm(fund.available, r)}</div></div>
+          <span className="shrink-0 text-sm font-medium underline">Voir / réinvestir →</span>
+        </Link>
+      )}
+
+      <div className="card mb-5"><div className="mb-3 font-display text-base font-semibold">Ventes nettes par jour</div><div className={hidden ? 'pointer-events-none select-none opacity-60 blur-[5px]' : ''}><Bars data={m.byDay} cur={r} /></div></div>
 
       <div className="mb-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <Ledger title="Ventes">
@@ -166,11 +183,11 @@ export default function Dashboard() {
         <div className="card"><div className="mb-2 font-display text-base font-semibold">Articles les plus vendus</div>
           {!m.topItems.length ? <div className="text-sm text-neutral-500">—</div> : m.topItems.map((x) => <div key={x.label} className="flex justify-between border-b border-line/70 py-2 text-sm last:border-0"><span>{x.label}</span><b>{x.qty}</b></div>)}</div>
         {fin && <div className="card"><div className="mb-2 font-display text-base font-semibold">Projets les plus rentables</div>
-          {!m.topProjects.length ? <div className="text-sm text-neutral-500">—</div> : m.topProjects.map((x) => <Link key={x.id} to={`/projets/${x.id}`} className="flex justify-between border-b border-line/70 py-2 text-sm last:border-0"><span>{x.p?.number} {x.p?.name}</span><b className={x.profit >= 0 ? 'text-emerald-700' : 'text-blush-600'}>{money(x.profit, r)}</b></Link>)}</div>}
+          {!m.topProjects.length ? <div className="text-sm text-neutral-500">—</div> : m.topProjects.map((x) => <Link key={x.id} to={`/projets/${x.id}`} className="flex justify-between border-b border-line/70 py-2 text-sm last:border-0"><span>{x.p?.number} {x.p?.name}</span><b className={x.profit >= 0 ? 'text-emerald-700' : 'text-blush-600'}>{fm(x.profit, r)}</b></Link>)}</div>}
         <div className="card"><div className="mb-2 font-display text-base font-semibold">Transactions récentes</div>
           {!recentSales.length ? <div className="text-sm text-neutral-500">—</div> : recentSales.map((s) => <Link key={s.id} to={`/ventes/${s.id}`} className="flex justify-between border-b border-line/70 py-2 text-sm last:border-0"><span>{s.number} · {s.customerName}<span className="block text-xs text-neutral-500">par {sellerOf(s)}</span></span><span className="text-neutral-500">{fdate(s.date)}</span></Link>)}</div>
         {fin && <div className="card"><div className="mb-2 font-display text-base font-semibold">Dépenses récentes</div>
-          {!recentExp.length ? <div className="text-sm text-neutral-500">—</div> : recentExp.map((e) => <div key={e.id} className="flex justify-between border-b border-line/70 py-2 text-sm last:border-0"><span>{e.category}</span><b>{money(convert(e.amount, e.currency, r, e.rate), r)}</b></div>)}</div>}
+          {!recentExp.length ? <div className="text-sm text-neutral-500">—</div> : recentExp.map((e) => <div key={e.id} className="flex justify-between border-b border-line/70 py-2 text-sm last:border-0"><span>{e.category}</span><b>{fm(convert(e.amount, e.currency, r, e.rate), r)}</b></div>)}</div>}
         {fin && m.slow.length > 0 && <div className="card lg:col-span-2"><div className="mb-2 font-display text-base font-semibold">Articles à faible rotation</div>{m.slow.map((x, i) => <div key={i} className="flex justify-between border-b border-line/70 py-2 text-sm last:border-0"><span>{x.label} ({x.project})</span><span>reste {x.remaining}</span></div>)}</div>}
       </div>
     </>
@@ -179,6 +196,7 @@ export default function Dashboard() {
 
 // « Mes ventes du mois » : visible par un vendeur seulement si l'administrateur l'a autorisé (Réglages → Commissions & objectifs)
 function MyPerformance() {
+  const fm = useMoney()
   const app = useApp()
   const cfg = app.settings.commission
   const month = today().slice(0, 7)
@@ -192,12 +210,12 @@ function MyPerformance() {
       <div className="mb-2 flex items-center justify-between"><div className="font-medium">Mes ventes du mois</div><span className="text-xs text-neutral-500">{month}</span></div>
       <div className="grid grid-cols-3 gap-3 text-center">
         <div><div className="text-xs text-neutral-500">Ventes</div><div className="text-lg font-semibold">{mine.count}</div></div>
-        <div><div className="text-xs text-neutral-500">Chiffre d'affaires</div><div className="text-lg font-semibold">{money(mine.ca, app.ref)}</div></div>
-        <div><div className="text-xs text-neutral-500">Ma commission</div><div className="text-lg font-semibold text-gold-700">{money(commissionOf(cfg, mine.ca, mine.profit), app.ref)}</div></div>
+        <div><div className="text-xs text-neutral-500">Chiffre d'affaires</div><div className="text-lg font-semibold">{fm(mine.ca, app.ref)}</div></div>
+        <div><div className="text-xs text-neutral-500">Ma commission</div><div className="text-lg font-semibold text-gold-700">{fm(commissionOf(cfg, mine.ca, mine.profit), app.ref)}</div></div>
       </div>
       {cfg.target > 0 && (
         <div className="mt-3">
-          <div className="flex justify-between text-xs text-neutral-500"><span>Objectif {money(cfg.target, app.ref)}</span><span>{pct} %</span></div>
+          <div className="flex justify-between text-xs text-neutral-500"><span>Objectif {fm(cfg.target, app.ref)}</span><span>{pct} %</span></div>
           <div className="mt-1 h-2 overflow-hidden rounded-full bg-neutral-100"><div className={'h-full rounded-full ' + (pct >= 100 ? 'bg-emerald-500' : 'bg-gold-500')} style={{ width: Math.min(100, pct) + '%' }} /></div>
         </div>
       )}
