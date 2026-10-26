@@ -1,7 +1,20 @@
-import { useEffect, useRef, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { money } from '../lib/util.js'
 import Icon from './Icon.jsx'
+
+// Masquage des montants (petit œil du tableau de bord) : hors du tableau de bord, rien ne change.
+export const PrivacyCtx = createContext(false)
+export const MASK = '•••• $'
+export function useMoney() {
+  const hidden = useContext(PrivacyCtx)
+  return (v, cur = 'USD') => (hidden ? (cur === 'USD' ? '•••• $' : '•••• HTG') : money(v, cur))
+}
+export function usePrivacy() {
+  const [hidden, setHidden] = useState(() => { try { return localStorage.getItem('tb-hide-amounts') === '1' } catch { return false } })
+  const toggle = () => setHidden((h) => { const n = !h; try { localStorage.setItem('tb-hide-amounts', n ? '1' : '0') } catch { /* rien */ } return n })
+  return [hidden, toggle]
+}
 
 export function Field({ label, children, hint, className = '' }) {
   return (
@@ -187,12 +200,14 @@ export function Row({ label, value, sub, tone, strong }) {
     </div>
   )
 }
-export const MoneyRow = ({ label, v, cur, sub, signed, strong }) => (
-  <Row label={label} sub={sub} strong={strong} value={money(v, cur)} tone={signed ? (v > 0.004 ? 'good' : v < -0.004 ? 'bad' : undefined) : undefined} />
-)
-export const MoneyStat = ({ label, v, cur, sub, signed, icon }) => (
-  <Stat label={label} icon={icon} value={money(v, cur)} sub={sub} tone={signed ? (v >= 0 ? 'good' : 'bad') : undefined} />
-)
+export const MoneyRow = ({ label, v, cur, sub, signed, strong }) => {
+  const fm = useMoney()
+  return <Row label={label} sub={sub} strong={strong} value={fm(v, cur)} tone={signed ? (v > 0.004 ? 'good' : v < -0.004 ? 'bad' : undefined) : undefined} />
+}
+export const MoneyStat = ({ label, v, cur, sub, signed, icon }) => {
+  const fm = useMoney()
+  return <Stat label={label} icon={icon} value={fm(v, cur)} sub={sub} tone={signed ? (v >= 0 ? 'good' : 'bad') : undefined} />
+}
 
 export function PageHeader({ title, subtitle, children }) {
   return (
