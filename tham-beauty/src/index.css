@@ -64,6 +64,7 @@ tbody tr:hover { background: #fcfaf6; }
   /* surfaces */
   html.dark .bg-white { background-color: #17171c; }
   html.dark .bg-paper { background-color: #0e0e11; }
+  html.dark .bg-paper\/60 { background-color: rgba(14, 14, 17, .6); }
   html.dark .bg-paper\/90 { background-color: rgba(14, 14, 17, .9); }
   html.dark .bg-neutral-50 { background-color: #1c1c22; }
   html.dark .bg-neutral-100 { background-color: #202027; }
