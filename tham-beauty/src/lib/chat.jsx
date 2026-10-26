@@ -114,15 +114,16 @@ export function ChatProvider({ children }) {
     const msg = { text: t, by: me, byName: myName, ts: serverTimestamp(), ...(image ? { image } : {}) }
     const last = { text: t.slice(0, 120), by: me, byName: myName, ...(image ? { image: true } : {}) }
     const exists = !!chatDocs[chat.id]
+    const step = async (name, p) => { try { return await p } catch (e) { e.step = name; throw e } }
     if (!exists) {
       // première utilisation de cette conversation
       // merge : si l'autre personne a créé la conversation entre-temps, on ne change que le dernier message
-      if (chat.type === 'dm') await setDoc(doc(db, 'chats', chat.id), { type: 'dm', members: [...chat.members].sort(), lastMessage: last, lastAt: serverTimestamp() }, { merge: true })
-      else await setDoc(doc(db, 'chats', chat.id), { type: chat.type, name: chat.name, lastMessage: last, lastAt: serverTimestamp() }, { merge: true })
+      if (chat.type === 'dm') await step('conversation', setDoc(doc(db, 'chats', chat.id), { type: 'dm', members: [...chat.members].sort(), lastMessage: last, lastAt: serverTimestamp() }, { merge: true }))
+      else await step('conversation', setDoc(doc(db, 'chats', chat.id), { type: chat.type, name: chat.name, lastMessage: last, lastAt: serverTimestamp() }, { merge: true }))
     } else {
-      await updateDoc(doc(db, 'chats', chat.id), { lastMessage: last, lastAt: serverTimestamp() })
+      await step('dernier message', updateDoc(doc(db, 'chats', chat.id), { lastMessage: last, lastAt: serverTimestamp() }))
     }
-    await addDoc(collection(db, 'chats', chat.id, 'messages'), msg)
+    await step('message', addDoc(collection(db, 'chats', chat.id, 'messages'), msg))
   }, [me, myName, chatDocs])
 
   const removeMessage = useCallback((chatId, mid) => deleteDoc(doc(db, 'chats', chatId, 'messages', mid)), [])

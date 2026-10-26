@@ -132,6 +132,7 @@ export function AppProvider({ children }) {
     CORE.forEach(listen)
     const t = setTimeout(() => {
       LATER.forEach(listen)
+      if (profile.role === 'admin') listen('fundMoves') // fonds de réinvestissement : administrateur seulement
       if (can(profile, 'bundles.write')) listen('bundles') // boîtes (vente en gros) : seulement pour qui en a le droit
       // Clôtures de caisse : tout le monde voit les siennes ; l'admin / la finance voient toutes
       const allClosings = profile.role === 'admin' || can(profile, 'finance.read')
@@ -179,7 +180,7 @@ export function AppProvider({ children }) {
     return {
       products: data.products || [], suppliers: data.suppliers || [], customers: data.customers || [],
       projects: allProjects.filter((p) => !p.deletedAt), expenses, sales,
-      bundles: data.bundles || [], users: data.users || [], inventories: data.inventories || [], cashClosings: data.cashClosings || [], rateHistory: [...(data.rateHistory || [])].sort((a, b) => (b.at || '').localeCompare(a.at || '')),
+      bundles: data.bundles || [], fundMoves: data.fundMoves || [], users: data.users || [], inventories: data.inventories || [], cashClosings: data.cashClosings || [], rateHistory: [...(data.rateHistory || [])].sort((a, b) => (b.at || '').localeCompare(a.at || '')),
       trash: { projects: trashProjects, sales: trashedSales, items: trashItems },
       deleteRequests: sales.filter((s) => s.deleteRequest?.status === 'pending')
     }
@@ -292,7 +293,7 @@ export function AppProvider({ children }) {
   }, [save, authUser, profile])
 
   // ---------- Sauvegarde / restauration (administrateur) ----------
-  const BACKUP_COLS = ['products', 'suppliers', 'customers', 'projects', 'expenses', 'sales', 'rateHistory', 'inventories', 'cashClosings', 'bundles']
+  const BACKUP_COLS = ['products', 'suppliers', 'customers', 'projects', 'expenses', 'sales', 'rateHistory', 'inventories', 'cashClosings', 'bundles', 'fundMoves']
   const stripTs = ({ _ts, ...rest }) => rest
   const exportAll = useCallback(() => {
     const d = dataRef.current
