@@ -29,6 +29,8 @@ function TreasuryInner({ hidden, toggle }) {
   const T = useMemo(() => treasuryReport(app.D, ref, range, { opening }), [app.D, ref, range, opening])
   const fund = useMemo(() => (app.isAdmin ? fundSummary(app.D, app.costing, ref, fundConfig(app.settings)) : null), [app.isAdmin, app.D, app.costing, ref, app.settings])
   const maxDay = Math.max(1, ...T.byDay.map((d) => Math.max(d.in, d.out)))
+  const [kindF, setKindF] = useState('')
+  const [more, setMore] = useState(false)
   const endsToday = range[1].getTime() >= Date.now() - 86400000
   const canSetOpening = app.can('settings.manage')
 
@@ -152,6 +154,40 @@ function TreasuryInner({ hidden, toggle }) {
           ))}
         </section>
       </div>
+
+      <section className="card mb-5 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="font-display text-base font-semibold">Détail des mouvements <span className="text-xs font-normal text-neutral-500">({T.count} sur la période)</span></h3>
+          <select className="input !w-auto !py-2" value={kindF} onChange={(e) => { setKindF(e.target.value); setMore(false) }}>
+            <option value="">Tous les types</option>
+            {Object.entries(KINDS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+          </select>
+        </div>
+        <p className="text-xs text-neutral-500">Chaque ligne est un vrai mouvement enregistré (vente encaissée, dépense, paiement fournisseur…). Les plus gros sont en premier : touchez une ligne pour ouvrir son origine et vérifier.</p>
+        {(() => {
+          const rows = [...T.events].filter((e) => !kindF || e.kind === kindF).sort((a, b) => b.amountRef - a.amountRef)
+          const shown = more ? rows : rows.slice(0, 25)
+          if (!rows.length) return <Empty icon="wallet">Aucun mouvement.</Empty>
+          return (
+            <>
+              <div className="overflow-x-auto">
+                <Table head={['Date', 'Type', 'Détail', 'Moyen', 'Montant']}>
+                  {shown.map((e, i) => (
+                    <tr key={i} className="hover:bg-paper">
+                      <td className="td whitespace-nowrap">{fdate(e.date)}</td>
+                      <td className="td text-xs"><span className={e.dir === 'in' ? 'text-emerald-700' : 'text-blush-600'}>{e.dir === 'in' ? '＋' : '−'}</span> {KINDS[e.kind]}</td>
+                      <td className="td text-xs">{e.to ? <Link className="underline" to={e.to}>{e.label || 'Voir'}</Link> : e.label}</td>
+                      <td className="td text-xs">{e.method}</td>
+                      <td className={'td whitespace-nowrap font-medium ' + (e.dir === 'in' ? 'text-emerald-700' : 'text-blush-600')}>{fm(e.amountRef, ref)}{e.currency !== ref && <div className="text-[11px] font-normal text-neutral-500">{fm(e.amount, e.currency)} · taux {e.rate}</div>}</td>
+                    </tr>
+                  ))}
+                </Table>
+              </div>
+              {rows.length > shown.length && <button className="btn-ghost w-full" onClick={() => setMore(true)}>Voir les {rows.length - shown.length} autres</button>}
+            </>
+          )
+        })()}
+      </section>
 
       {canSetOpening && (
         <section className="card space-y-2">
