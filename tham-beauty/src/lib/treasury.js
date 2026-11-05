@@ -57,6 +57,12 @@ export function treasuryReport(D, ref, range, { opening = 0, now = Date.now() } 
   const cumIn = sumBy(all.filter((e) => e.dir === 'in'), (e) => e.amountRef)
   const cumOut = sumBy(all.filter((e) => e.dir === 'out'), (e) => e.amountRef)
   const balance = Number(opening || 0) + cumIn - cumOut
+  // Solde au début et à la fin de la PÉRIODE choisie (le solde « aujourd'hui » reste dans `balance`)
+  const signed = (e) => (e.dir === 'in' ? e.amountRef : -e.amountRef)
+  const t0 = range[0].getTime(), t1 = range[1].getTime()
+  const when = (e) => parseD(e.date).getTime()
+  const balanceStart = Number(opening || 0) + sumBy(all.filter((e) => when(e) < t0), signed)
+  const balanceEnd = Number(opening || 0) + sumBy(all.filter((e) => when(e) <= t1), signed)
 
   // À venir : créances clients et dettes fournisseurs (soldes à ce jour)
   let receivables = 0, overdue = 0, overdueCount = 0
@@ -80,7 +86,7 @@ export function treasuryReport(D, ref, range, { opening = 0, now = Date.now() } 
   const top = (l) => l.sort((a, b) => b.value - a.value).slice(0, 5).map((x) => ({ ...x, value: round2(x.value) }))
 
   return {
-    in: round2(inn), out: round2(out), net: round2(inn - out), byKind, byMethod, byCurrency, byDay,
+    in: round2(inn), out: round2(out), net: round2(inn - out), balanceStart: round2(balanceStart), balanceEnd: round2(balanceEnd), byKind, byMethod, byCurrency, byDay,
     cumulative: { in: round2(cumIn), out: round2(cumOut), net: round2(cumIn - cumOut) }, balance: round2(balance),
     receivables: round2(receivables), payables: round2(payables), overdue: round2(overdue), overdueCount,
     forecast: round2(balance + receivables - payables), topReceivables: top(rec), topPayables: top(pay)
