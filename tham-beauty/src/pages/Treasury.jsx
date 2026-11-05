@@ -68,13 +68,13 @@ function TreasuryInner({ hidden, toggle }) {
       <div className="relative mb-5 overflow-hidden rounded-3xl bg-ink p-5 text-white shadow-pop sm:p-7"
         style={{ backgroundImage: 'radial-gradient(80% 120% at 100% 0%, rgba(201,154,62,.32), transparent 55%), radial-gradient(60% 100% at 0% 100%, rgba(240,86,143,.16), transparent 60%)' }}>
         <button type="button" onClick={toggle} className="absolute right-3 top-3 grid h-10 w-10 place-items-center rounded-full text-gold-300 hover:bg-white/10" aria-label={hidden ? 'Afficher les montants' : 'Masquer les montants'}><Icon name={hidden ? 'eyeoff' : 'eye'} size={21} /></button>
-        <div className="text-sm font-medium text-gold-300">Argent disponible estimé {endsToday ? 'aujourd’hui' : `au ${fdate(range[1])}`}</div>
-        <div className="mt-2 text-4xl font-bold tracking-tight sm:text-5xl"><span className="gold-text">{fm(T.balanceEnd, ref)}</span></div>
-        <div className="mt-1 text-sm text-neutral-400">{period === 'tout' ? 'solde d’ouverture' : `au début (${fdate(range[0])})`} : {fm(T.balanceStart, ref)} · variation de la période : {fm(T.net, ref)}</div>
+        <div className="text-sm font-medium text-gold-300">Argent disponible sur la période <span className="text-neutral-400">({PERIODS.find((x) => x.value === period)?.label.toLowerCase()})</span></div>
+        <div className="mt-2 text-4xl font-bold tracking-tight sm:text-5xl"><span className={T.net >= 0 ? 'gold-text' : 'text-blush-400'}>{fm(T.net, ref)}</span></div>
+        <div className="mt-1 text-sm text-neutral-400">entrées {fm(T.in, ref)} − sorties {fm(T.out, ref)} · {rangeLabel}</div>
         <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="rounded-2xl bg-white/[0.06] p-3 ring-1 ring-white/10"><div className="text-xs text-neutral-400">Entrées (période)</div><div className="mt-1 text-lg font-semibold text-emerald-300">{fm(T.in, ref)}</div></div>
           <div className="rounded-2xl bg-white/[0.06] p-3 ring-1 ring-white/10"><div className="text-xs text-neutral-400">Sorties (période)</div><div className="mt-1 text-lg font-semibold text-blush-400">{fm(T.out, ref)}</div></div>
-          <div className="rounded-2xl bg-white/[0.06] p-3 ring-1 ring-white/10"><div className="text-xs text-neutral-400">Net de la période</div><div className={'mt-1 text-lg font-semibold ' + (T.net >= 0 ? 'text-emerald-300' : 'text-blush-400')}>{fm(T.net, ref)}</div></div>
+          <div className="rounded-2xl bg-white/[0.06] p-3 ring-1 ring-white/10"><div className="text-xs text-neutral-400">Solde en caisse {endsToday ? 'aujourd’hui' : `au ${fdate(range[1])}`}</div><div className="mt-1 text-lg font-semibold">{fm(T.balanceEnd, ref)}</div><div className="text-[11px] text-neutral-400">cumul depuis le début + solde d’ouverture</div></div>
           <div className="rounded-2xl bg-white/[0.06] p-3 ring-1 ring-white/10"><div className="text-xs text-neutral-400">Prévision à ce jour (solde + créances − dettes)</div><div className="mt-1 text-lg font-semibold">{fm(T.forecast, ref)}</div></div>
         </div>
       </div>
