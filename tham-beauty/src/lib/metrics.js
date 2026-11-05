@@ -46,8 +46,9 @@ export function computeMetrics({ D, costing, ref, rate, settings }, f) {
   // Frais globaux de projet (non répartis sur les articles) : ils réduisent le résultat, ils ne sont pas dans le coût des marchandises vendues.
   const expGlobalProject = expenses.filter((e) => e.projectId && e.global).reduce((s, e) => s + convert(e.amount, e.currency, ref, e.rate), 0)
   const expGeneral = f.projectId ? 0 : expenses.filter((e) => !e.projectId).reduce((s, e) => s + convert(e.amount, e.currency, ref, e.rate), 0)
-  let supplierPaid = 0
-  projects.forEach((p) => (p.supplierPayments || []).filter((x) => x.status !== 'annule' && inRange(x.date, f.range)).forEach((x) => { supplierPaid += convert(x.amount, x.currency, ref, x.rate) }))
+  // Paiements fournisseurs : ceux financés par le fonds de réinvestissement sont isolés (fundPaid) ; ils ne touchent ni CA ni bénéfice.
+  let supplierPaid = 0, fundPaid = 0
+  projects.forEach((p) => (p.supplierPayments || []).filter((x) => x.status !== 'annule' && inRange(x.date, f.range)).forEach((x) => { const v = convert(x.amount, x.currency, ref, x.rate); if (x.fundMoveId) fundPaid += v; else supplierPaid += v }))
   cashOut += expProject + expGeneral + supplierPaid
 
   // Créances / dettes (à date)
@@ -85,7 +86,7 @@ export function computeMetrics({ D, costing, ref, rate, settings }, f) {
   return {
     gross, discount, net, cogs, grossProfit: net - cogs, nbSales, avgBasket: nbSales ? net / nbSales : 0,
     expGeneral, expProject, expGlobalProject, netResult: net - cogs - expGeneral - expGlobalProject,
-    cashIn, cashOut, treasury: cashIn - cashOut, fx, receivables, payables, unpaidInvoices, forecast,
+    cashIn, cashOut, fundPaid, treasury: cashIn - cashOut, treasuryAfter: cashIn - cashOut - fundPaid, fx, receivables, payables, unpaidInvoices, forecast,
     refs, available, outOfStock, lowStock, stockValue, slow, topItems, topProjects, byDay,
     activeProjects: D.projects.filter((p) => !['termine', 'archive'].includes(p.status)).length,
     discountPct: gross > 0 ? (discount / gross) * 100 : 0
