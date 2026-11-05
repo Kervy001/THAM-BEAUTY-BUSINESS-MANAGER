@@ -81,7 +81,8 @@ export default function Reports() {
         <MoneyStat label="Bénéfice commercial réalisé" v={m.grossProfit} cur={r} signed />
         <MoneyStat label="Résultat après frais généraux" v={m.netResult} cur={r} signed />
         <MoneyStat label="Encaissements" v={m.cashIn} cur={r} />
-        <MoneyStat label="Décaissements" v={m.cashOut} cur={r} />
+        <MoneyStat label="Décaissements (hors fonds de réinvestissement)" v={m.cashOut} cur={r} />
+        {m.fundPaid > 0.004 && <MoneyStat label="Réinvesti via le fonds" v={m.fundPaid} cur={r} />}
         <MoneyStat label="Créances clients" v={m.receivables} cur={r} />
         <MoneyStat label="Dettes fournisseurs" v={m.payables} cur={r} />
       </div>

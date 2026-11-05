@@ -155,10 +155,13 @@ function DashboardInner({ hidden, toggle }) {
         {fin && (
           <Ledger title="Trésorerie" note="Encaissements et décaissements enregistrés sur la période. Les créances et dettes sont les soldes à ce jour.">
             <MoneyRow label="Encaissements" v={m.cashIn} cur={r} />
-            <MoneyRow label="Décaissements" sub="Dépenses, fournisseurs, remboursements" v={m.cashOut} cur={r} />
-            <MoneyRow strong signed label="Trésorerie de la période" v={m.treasury} cur={r} />
+            <MoneyRow label="Décaissements" sub={m.fundPaid > 0.004 ? 'Dépenses, fournisseurs, remboursements (hors fonds)' : 'Dépenses, fournisseurs, remboursements'} v={m.cashOut} cur={r} />
+            <MoneyRow strong signed label={m.fundPaid > 0.004 ? 'Trésorerie avant réinvestissement' : 'Trésorerie de la période'} v={m.treasury} cur={r} />
+            {m.fundPaid > 0.004 && <MoneyRow label="Réinvesti via le fonds" sub="paiements fournisseurs payés par le fonds" v={m.fundPaid} cur={r} />}
+            {m.fundPaid > 0.004 && <MoneyRow strong signed label="Trésorerie après réinvestissement" v={m.treasuryAfter} cur={r} />}
             <MoneyRow label="Créances clients" v={m.receivables} cur={r} />
             <MoneyRow label="Dettes fournisseurs" v={m.payables} cur={r} />
+            <Link to="/tresorerie" className="mt-2 block text-right text-xs font-medium underline">Voir la trésorerie en détail →</Link>
           </Ledger>
         )}
 
