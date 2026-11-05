@@ -29,6 +29,7 @@ function TreasuryInner({ hidden, toggle }) {
   const T = useMemo(() => treasuryReport(app.D, ref, range, { opening }), [app.D, ref, range, opening])
   const fund = useMemo(() => (app.isAdmin ? fundSummary(app.D, app.costing, ref, fundConfig(app.settings)) : null), [app.isAdmin, app.D, app.costing, ref, app.settings])
   const maxDay = Math.max(1, ...T.byDay.map((d) => Math.max(d.in, d.out)))
+  const endsToday = range[1].getTime() >= Date.now() - 86400000
   const canSetOpening = app.can('settings.manage')
 
   async function saveOpening() {
@@ -38,7 +39,7 @@ function TreasuryInner({ hidden, toggle }) {
 
   // Conseils automatiques, d'après les chiffres
   const tips = []
-  if (T.balance < 0) tips.push({ tone: 'red', text: `Le solde estimé est négatif (${money(T.balance, ref)}). Vérifiez le solde d’ouverture : c’est l’argent que vous aviez avant d’utiliser l’application.` })
+  if (T.balance < 0) tips.push({ tone: 'red', text: `Le solde estimé à ce jour est négatif (${money(T.balance, ref)}). Vérifiez le solde d’ouverture : c’est l’argent que vous aviez avant d’utiliser l’application.` })
   if (T.overdueCount > 0) tips.push({ tone: 'amber', text: `${T.overdueCount} vente(s) impayée(s) depuis plus de 30 jours, soit ${money(T.overdue, ref)} à relancer.`, to: '/creances', cta: 'Voir les créances' })
   if (T.payables > T.balance + T.receivables && T.payables > 0) tips.push({ tone: 'red', text: 'Vos dettes fournisseurs dépassent votre solde plus vos créances : prévoyez de l’argent avant de commander à nouveau.' })
   else if (T.payables > T.balance && T.payables > 0) tips.push({ tone: 'amber', text: `Vos dettes fournisseurs (${money(T.payables, ref)}) dépassent votre solde actuel : elles dépendent de l’encaissement des créances.` })
@@ -67,14 +68,14 @@ function TreasuryInner({ hidden, toggle }) {
       <div className="relative mb-5 overflow-hidden rounded-3xl bg-ink p-5 text-white shadow-pop sm:p-7"
         style={{ backgroundImage: 'radial-gradient(80% 120% at 100% 0%, rgba(201,154,62,.32), transparent 55%), radial-gradient(60% 100% at 0% 100%, rgba(240,86,143,.16), transparent 60%)' }}>
         <button type="button" onClick={toggle} className="absolute right-3 top-3 grid h-10 w-10 place-items-center rounded-full text-gold-300 hover:bg-white/10" aria-label={hidden ? 'Afficher les montants' : 'Masquer les montants'}><Icon name={hidden ? 'eyeoff' : 'eye'} size={21} /></button>
-        <div className="text-sm font-medium text-gold-300">Argent disponible estimé</div>
-        <div className="mt-2 text-4xl font-bold tracking-tight sm:text-5xl"><span className="gold-text">{fm(T.balance, ref)}</span></div>
-        <div className="mt-1 text-sm text-neutral-400">solde d’ouverture {fm(opening, ref)} + tout ce qui est entré − tout ce qui est sorti depuis le début</div>
+        <div className="text-sm font-medium text-gold-300">Argent disponible estimé {endsToday ? 'aujourd’hui' : `au ${fdate(range[1])}`}</div>
+        <div className="mt-2 text-4xl font-bold tracking-tight sm:text-5xl"><span className="gold-text">{fm(T.balanceEnd, ref)}</span></div>
+        <div className="mt-1 text-sm text-neutral-400">{period === 'tout' ? 'solde d’ouverture' : `au début (${fdate(range[0])})`} : {fm(T.balanceStart, ref)} · variation de la période : {fm(T.net, ref)}</div>
         <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="rounded-2xl bg-white/[0.06] p-3 ring-1 ring-white/10"><div className="text-xs text-neutral-400">Entrées (période)</div><div className="mt-1 text-lg font-semibold text-emerald-300">{fm(T.in, ref)}</div></div>
           <div className="rounded-2xl bg-white/[0.06] p-3 ring-1 ring-white/10"><div className="text-xs text-neutral-400">Sorties (période)</div><div className="mt-1 text-lg font-semibold text-blush-400">{fm(T.out, ref)}</div></div>
           <div className="rounded-2xl bg-white/[0.06] p-3 ring-1 ring-white/10"><div className="text-xs text-neutral-400">Net de la période</div><div className={'mt-1 text-lg font-semibold ' + (T.net >= 0 ? 'text-emerald-300' : 'text-blush-400')}>{fm(T.net, ref)}</div></div>
-          <div className="rounded-2xl bg-white/[0.06] p-3 ring-1 ring-white/10"><div className="text-xs text-neutral-400">Prévision (avec créances − dettes)</div><div className="mt-1 text-lg font-semibold">{fm(T.forecast, ref)}</div></div>
+          <div className="rounded-2xl bg-white/[0.06] p-3 ring-1 ring-white/10"><div className="text-xs text-neutral-400">Prévision à ce jour (solde + créances − dettes)</div><div className="mt-1 text-lg font-semibold">{fm(T.forecast, ref)}</div></div>
         </div>
       </div>
 
@@ -139,13 +140,13 @@ function TreasuryInner({ hidden, toggle }) {
 
       <div className="mb-5 grid gap-4 md:grid-cols-2">
         <section className="card">
-          <div className="mb-2 flex items-baseline justify-between"><h3 className="font-display text-base font-semibold">À encaisser (créances)</h3><b>{fm(T.receivables, ref)}</b></div>
+          <div className="mb-2 flex items-baseline justify-between"><h3 className="font-display text-base font-semibold">À encaisser à ce jour (créances)</h3><b>{fm(T.receivables, ref)}</b></div>
           {!T.topReceivables.length ? <div className="text-sm text-neutral-500">Aucune créance. 🎉</div> : T.topReceivables.map((r) => (
             <Link key={r.id} to={`/ventes/${r.id}`} className="flex justify-between border-b border-line/70 py-2 text-sm last:border-0 hover:underline"><span>{r.label}{r.age > 30 && <span className="ml-1 text-[11px] font-semibold text-blush-600">{r.age} j</span>}</span><b>{fm(r.value, ref)}</b></Link>
           ))}
         </section>
         <section className="card">
-          <div className="mb-2 flex items-baseline justify-between"><h3 className="font-display text-base font-semibold">À payer (fournisseurs)</h3><b>{fm(T.payables, ref)}</b></div>
+          <div className="mb-2 flex items-baseline justify-between"><h3 className="font-display text-base font-semibold">À payer à ce jour (fournisseurs)</h3><b>{fm(T.payables, ref)}</b></div>
           {!T.topPayables.length ? <div className="text-sm text-neutral-500">Aucune dette fournisseur.</div> : T.topPayables.map((r) => (
             <Link key={r.id} to={`/projets/${r.id}`} className="flex justify-between border-b border-line/70 py-2 text-sm last:border-0 hover:underline"><span>{r.label}</span><b>{fm(r.value, ref)}</b></Link>
           ))}
