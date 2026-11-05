@@ -176,6 +176,8 @@ function MoveModal({ kind, F, onClose }) {
     if (!(amount > 0)) return setErr('Entrez un montant.')
     if (kind !== 'deposit' && amountRef > F.available + 0.005) return setErr('Le montant dépasse le fonds disponible.')
     if (kind === 'reinvest' && !p) return setErr('Choisissez un projet.')
+    if (kind === 'reinvest' && sum.balance <= 0.005) return setErr('Ce projet est déjà entièrement payé au fournisseur.')
+    if (kind === 'reinvest' && amount > sum.balance + 0.005) return setErr(`Le montant dépasse ce qu’il reste à payer au fournisseur (${round2(sum.balance)} ${p.currency}).`)
     setBusy(true)
     try {
       const base = { type: kind, amount, currency: cur, rate: Number(app.rate), date: f.date, note: f.note.trim(), at: nowIso(), by: app.profile?.name || '' }
