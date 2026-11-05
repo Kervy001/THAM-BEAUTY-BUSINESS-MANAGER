@@ -17,19 +17,19 @@ export function cashEvents(D, ref) {
   const add = (e) => ev.push({ ...e, amountRef: convert(e.amount, e.currency, ref, e.rate) })
   ;(D.sales || []).filter((s) => s.status !== 'annule').forEach((s) => {
     ;(s.payments || []).filter((p) => p.status !== 'annule').forEach((p) => {
-      add({ date: p.date, dir: p.type === 'refund' ? 'out' : 'in', kind: p.type === 'refund' ? 'remboursement' : 'vente', amount: p.amount, currency: p.currency, rate: p.rate || s.rate, method: p.method || 'Autre', label: s.number || '' })
+      add({ date: p.date, dir: p.type === 'refund' ? 'out' : 'in', kind: p.type === 'refund' ? 'remboursement' : 'vente', amount: p.amount, currency: p.currency, rate: p.rate || s.rate, method: p.method || 'Autre', label: `${s.number || ''} ${s.customerName || ''}`.trim(), to: `/ventes/${s.id}` })
     })
   })
   ;(D.expenses || []).filter((e) => e.status !== 'annule').forEach((e) => {
-    add({ date: e.date, dir: 'out', kind: e.projectId ? 'depense_projet' : 'depense_generale', amount: e.amount, currency: e.currency, rate: e.rate, method: e.method || 'Autre', label: e.category || '' })
+    add({ date: e.date, dir: 'out', kind: e.projectId ? 'depense_projet' : 'depense_generale', amount: e.amount, currency: e.currency, rate: e.rate, method: e.method || 'Autre', label: `${e.category || ''} ${e.comment || e.note || ''}`.trim(), to: '/depenses' })
   })
   ;(D.projects || []).forEach((p) => {
     ;(p.supplierPayments || []).filter((x) => x.status !== 'annule').forEach((x) => {
-      add({ date: x.date, dir: 'out', kind: x.fundMoveId ? 'fonds' : 'fournisseur', amount: x.amount, currency: x.currency, rate: x.rate || p.rate, method: x.fundMoveId ? 'Fonds' : (x.method || 'Autre'), label: p.number || '' })
+      add({ date: x.date, dir: 'out', kind: x.fundMoveId ? 'fonds' : 'fournisseur', amount: x.amount, currency: x.currency, rate: x.rate || p.rate, method: x.fundMoveId ? 'Fonds' : (x.method || 'Autre'), label: `${p.number || ''} ${p.name || ''}`.trim(), to: `/projets/${p.id}` })
     })
   })
   ;(D.fundMoves || []).filter((m) => m.status !== 'annule' && (m.type === 'withdraw' || m.type === 'deposit')).forEach((m) => {
-    add({ date: m.date, dir: m.type === 'deposit' ? 'in' : 'out', kind: m.type === 'deposit' ? 'depot' : 'retrait', amount: m.amount, currency: m.currency, rate: m.rate, method: 'Fonds', label: m.note || '' })
+    add({ date: m.date, dir: m.type === 'deposit' ? 'in' : 'out', kind: m.type === 'deposit' ? 'depot' : 'retrait', amount: m.amount, currency: m.currency, rate: m.rate, method: 'Fonds', label: m.note || '', to: '/fonds' })
   })
   return ev
 }
@@ -86,6 +86,7 @@ export function treasuryReport(D, ref, range, { opening = 0, now = Date.now() } 
   const top = (l) => l.sort((a, b) => b.value - a.value).slice(0, 5).map((x) => ({ ...x, value: round2(x.value) }))
 
   return {
+    events: per.map((e) => ({ ...e, amountRef: round2(e.amountRef) })), count: per.length,
     in: round2(inn), out: round2(out), net: round2(inn - out), balanceStart: round2(balanceStart), balanceEnd: round2(balanceEnd), byKind, byMethod, byCurrency, byDay,
     cumulative: { in: round2(cumIn), out: round2(cumOut), net: round2(cumIn - cumOut) }, balance: round2(balance),
     receivables: round2(receivables), payables: round2(payables), overdue: round2(overdue), overdueCount,
