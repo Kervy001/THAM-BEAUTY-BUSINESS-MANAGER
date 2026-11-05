@@ -33,7 +33,8 @@ const loaders = {
   Inventory: () => import('./pages/Inventory.jsx'),
   Messages: () => import('./pages/Messages.jsx'),
   Bundles: () => import('./pages/Bundles.jsx'),
-  Fund: () => import('./pages/Fund.jsx')
+  Fund: () => import('./pages/Fund.jsx'),
+  Treasury: () => import('./pages/Treasury.jsx')
 }
 // La page d'accueil commence à se télécharger tout de suite, pendant que la connexion se vérifie.
 setTimeout(() => { loaders.Dashboard().catch(() => {}) }, 0)
@@ -60,6 +61,7 @@ const Cash = page('Cash')
 const Inventory = page('Inventory')
 const Messages = page('Messages')
 const Fund = page('Fund')
+const Treasury = page('Treasury')
 const Bundles = page('Bundles', 'Bundles')
 const BundleEditor = page('Bundles', 'BundleEditor')
 
@@ -99,6 +101,7 @@ const GROUPS = [
     { to: '/depenses', label: 'Dépenses', icon: 'wallet', perm: ['expenses.write', 'finance.read'] }
   ] },
   { title: 'Pilotage', items: [
+    { to: '/tresorerie', label: 'Trésorerie', icon: 'wallet', perm: ['finance.read'] },
     { to: '/fonds', label: 'Réinvestissement', icon: 'trend', adminOnly: true },
     { to: '/taux', label: 'Taux de change', icon: 'swap', perm: ['rates.write', 'finance.read', 'sales.write'] },
     { to: '/rapports', label: 'Rapports', icon: 'chart', perm: ['finance.read', 'export'] },
@@ -271,6 +274,7 @@ export default function App() {
             <Route path="/creances" element={<Receivables />} />
             <Route path="/caisse" element={<Cash />} />
             <Route path="/inventaire" element={<Inventory />} />
+            <Route path="/tresorerie" element={<Treasury />} />
             <Route path="/fonds" element={app.isAdmin ? <Fund /> : <Navigate to="/" />} />
             <Route path="/boites" element={<Bundles />} />
             <Route path="/boites/:id" element={<BundleEditor />} />
