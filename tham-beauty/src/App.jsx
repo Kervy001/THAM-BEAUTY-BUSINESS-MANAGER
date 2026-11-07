@@ -18,7 +18,6 @@ const loaders = {
   Dashboard: () => import('./pages/Dashboard.jsx'),
   Projects: () => import('./pages/Projects.jsx'),
   Products: () => import('./pages/Products.jsx'),
-  Partners: () => import('./pages/Partners.jsx'),
   Sales: () => import('./pages/Sales.jsx'),
   Expenses: () => import('./pages/Expenses.jsx'),
   Stock: () => import('./pages/Stock.jsx'),
@@ -34,6 +33,8 @@ const loaders = {
   Messages: () => import('./pages/Messages.jsx'),
   Bundles: () => import('./pages/Bundles.jsx'),
   Fund: () => import('./pages/Fund.jsx'),
+  Partners: () => import('./pages/Partners.jsx'),
+  Associates: () => import('./pages/Associates.jsx'),
   Treasury: () => import('./pages/Treasury.jsx')
 }
 // La page d'accueil commence à se télécharger tout de suite, pendant que la connexion se vérifie.
@@ -61,6 +62,7 @@ const Cash = page('Cash')
 const Inventory = page('Inventory')
 const Messages = page('Messages')
 const Fund = page('Fund')
+const Associates = page('Associates')
 const Treasury = page('Treasury')
 const Bundles = page('Bundles', 'Bundles')
 const BundleEditor = page('Bundles', 'BundleEditor')
@@ -103,6 +105,7 @@ const GROUPS = [
   { title: 'Pilotage', items: [
     { to: '/tresorerie', label: 'Trésorerie', icon: 'wallet', perm: ['finance.read'] },
     { to: '/fonds', label: 'Réinvestissement', icon: 'trend', adminOnly: true },
+    { to: '/associes', label: 'Associés', icon: 'users', adminOnly: true },
     { to: '/taux', label: 'Taux de change', icon: 'swap', perm: ['rates.write', 'finance.read', 'sales.write'] },
     { to: '/rapports', label: 'Rapports', icon: 'chart', perm: ['finance.read', 'export'] },
     { to: '/admin', label: 'Utilisateurs & réglages', icon: 'settings', perm: ['users.manage', 'settings.manage'] },
@@ -276,6 +279,7 @@ export default function App() {
             <Route path="/inventaire" element={<Inventory />} />
             <Route path="/tresorerie" element={<Treasury />} />
             <Route path="/fonds" element={app.isAdmin ? <Fund /> : <Navigate to="/" />} />
+            <Route path="/associes" element={app.isAdmin ? <Associates /> : <Navigate to="/" />} />
             <Route path="/boites" element={<Bundles />} />
             <Route path="/boites/:id" element={<BundleEditor />} />
             <Route path="/messages" element={<Messages />} />
