@@ -249,7 +249,7 @@ export function itemStock(item, sales) {
   const received = n(item.qtyReceived)
   const lost = n(item.qtyLost)
   // Ajustements d'inventaire (+ trouvé / − manquant)
-  const adjusted = (item.adjustments || []).reduce((t, a) => t + n(a.qty), 0)
+  const adjusted = (item.adjustments || []).filter((a) => !a.cancelled).reduce((t, a) => t + n(a.qty), 0)
   return { received, sold, returned, lost, adjusted, remaining: received - sold + returned - lost + adjusted }
 }
 
@@ -259,7 +259,7 @@ export function itemStock(item, sales) {
 export function itemStockAt(item, sales, locId, firstLoc = 'main') {
   const base = item.locationId || firstLoc
   let q = base === locId ? n(item.qtyReceived) - n(item.qtyLost) : 0
-  ;(item.adjustments || []).forEach((a) => { if ((a.locationId || base) === locId) q += n(a.qty) })
+  ;(item.adjustments || []).forEach((a) => { if (!a.cancelled && (a.locationId || base) === locId) q += n(a.qty) })
   ;(item.transfers || []).forEach((t) => { if (t.to === locId) q += n(t.qty); if (t.from === locId) q -= n(t.qty) })
   ;(sales || []).forEach((s) => {
     if (s.status === 'annule' || (s.locationId || base) !== locId) return

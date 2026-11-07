@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { onAuthStateChanged, signOut, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth'
-import { collection, doc, onSnapshot, setDoc, deleteDoc, writeBatch, where, deleteField, arrayUnion, runTransaction, serverTimestamp, query, orderBy, limit, addDoc } from 'firebase/firestore'
+import { collection, doc, onSnapshot, setDoc, deleteDoc, writeBatch, where, deleteField, arrayUnion, runTransaction, serverTimestamp, query, orderBy, limit, addDoc, getDocs } from 'firebase/firestore'
 import { auth, db, isConfigured } from './firebase.js'
 import { beep, systemNotify } from './alerts.js'
 import { can } from './perms.js'
@@ -139,7 +139,7 @@ export function AppProvider({ children }) {
       unsubs.push(onSnapshot(allClosings ? collection(db, 'cashClosings') : query(collection(db, 'cashClosings'), where('userId', '==', authUser?.uid || '')),
         (snap) => setData((d) => ({ ...d, cashClosings: snap.docs.map((x) => ({ id: x.id, ...x.data() })) })), () => setData((d) => ({ ...d, cashClosings: [] }))))
       if (can(profile, 'finance.read') || profile.role === 'admin') {
-        unsubs.push(onSnapshot(query(collection(db, 'audit'), orderBy('at', 'desc'), limit(200)),
+        unsubs.push(onSnapshot(query(collection(db, 'audit'), orderBy('at', 'desc'), limit(600)),
           (snap) => setAudit(snap.docs.map((x) => ({ id: x.id, ...x.data() }))), () => {}))
       }
     }, 1200)
@@ -316,6 +316,58 @@ export function AppProvider({ children }) {
     return ops.length
   }, [logAudit])
 
+  // Copies de sauvegarde dans Firebase (collections backups + backupParts) : on garde les 4 dernières.
+  const CHUNK = 300000
+  const cloudBackup = useCallback(async (auto = false) => {
+    if (!navigator.onLine) throw new Error('Connexion Internet requise.')
+    const json = JSON.stringify(exportAll())
+    const parts = []
+    for (let i = 0; i < json.length; i += CHUNK) parts.push(json.slice(i, i + CHUNK))
+    const id = 'b' + Date.now().toString(36)
+    const at = nowIso()
+    const counts = {}
+    BACKUP_COLS.forEach((c) => { counts[c] = (dataRef.current[c] || []).length })
+    for (let i = 0; i < parts.length; i += 3) {
+      const b = writeBatch(db)
+      parts.slice(i, i + 3).forEach((data, k) => b.set(doc(db, 'backupParts', `${id}_${i + k}`), { b: id, i: i + k, data }))
+      await b.commit()
+    }
+    await setDoc(doc(db, 'backups', id), { at, by: profile?.name || '', auto, parts: parts.length, size: json.length, counts })
+    await setDoc(doc(db, 'settings', 'main'), { backup: { lastAt: at, lastAuto: auto } }, { merge: true })
+    // ne garder que les 4 dernières copies
+    const snap = await getDocs(query(collection(db, 'backups'), orderBy('at', 'desc')))
+    for (const old of snap.docs.slice(4)) {
+      const n = old.data().parts || 0
+      const b = writeBatch(db)
+      for (let k = 0; k < n; k++) b.delete(doc(db, 'backupParts', `${old.id}_${k}`))
+      b.delete(old.ref)
+      await b.commit()
+    }
+    logAudit(auto ? 'sauvegarde automatique' : 'sauvegarde dans Firebase', 'settings', 'main', `${(json.length / 1024).toFixed(0)} Ko`)
+    return id
+  }, [exportAll, profile, logAudit]) // eslint-disable-line react-hooks/exhaustive-deps
+  const listCloudBackups = useCallback(async () => {
+    const snap = await getDocs(query(collection(db, 'backups'), orderBy('at', 'desc')))
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+  }, [])
+  const loadCloudBackup = useCallback(async (b) => {
+    const snap = await getDocs(query(collection(db, 'backupParts'), where('b', '==', b.id)))
+    const parts = snap.docs.map((d) => d.data()).sort((x, y) => x.i - y.i)
+    if (parts.length !== b.parts) throw new Error('Copie incomplète.')
+    return JSON.parse(parts.map((p) => p.data).join(''))
+  }, [])
+  // Sauvegarde automatique : une fois par semaine, quand l'administrateur ouvre l'application (connexion + données chargées)
+  const autoBackedUp = useRef(false)
+  useEffect(() => {
+    if (profile?.role !== 'admin' || !online || autoBackedUp.current || !settings || !data.sales || !data.projects || !data.customers) return
+    if (settings.backup?.auto === false) return
+    const last = settings.backup?.lastAt ? Date.parse(settings.backup.lastAt) : 0
+    if (Date.now() - last < 7 * 864e5) return
+    autoBackedUp.current = true
+    const t = setTimeout(() => { cloudBackup(true).then(() => notify('Sauvegarde automatique faite ✓')).catch(() => { autoBackedUp.current = false }) }, 12000)
+    return () => clearTimeout(t)
+  }, [profile?.role, online, settings, data.sales, data.projects, data.customers, cloudBackup, notify])
+
   // ---------- Corbeille, suppression de projets et de ventes ----------
   const isAdmin = profile?.role === 'admin'
   const dataRef = useRef(data)
@@ -436,7 +488,7 @@ export function AppProvider({ children }) {
   const value = {
     authUser, profile, active, settings: settings || DEFAULT_SETTINGS, settingsExists: !!settings, settingsReady, ref, rate, online, hasPending, toasts,
     D, costing, audit, save, saveSettings, write, notify, logAudit, nextNumber, isAdmin,
-    verifyPassword, removeExpense, exportAll, restoreAll, locations, multiLoc: locations.length > 1, notifs, unreadNotifs, markNotifsSeen, pushSaleNotification, trashProject, restoreProject, purgeProject, trashItems, restoreItems, purgeItems, requestSaleDeletion, refuseSaleDeletion, trashSale, restoreSale, purgeSale,
+    verifyPassword, removeExpense, exportAll, restoreAll, cloudBackup, listCloudBackups, loadCloudBackup, locations, multiLoc: locations.length > 1, notifs, unreadNotifs, markNotifsSeen, pushSaleNotification, trashProject, restoreProject, purgeProject, trashItems, restoreItems, purgeItems, requestSaleDeletion, refuseSaleDeletion, trashSale, restoreSale, purgeSale,
     can: (p) => can(profile, p),
     logout: () => { try { localStorage.removeItem(`tb-profile-${authUser?.uid}`) } catch { /* rien */ } return signOut(auth) }
   }

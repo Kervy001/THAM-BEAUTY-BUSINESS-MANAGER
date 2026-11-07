@@ -83,12 +83,19 @@ export function computeMetrics({ D, costing, ref, rate, settings }, f) {
     })
   })
 
+  // Pertes de stock (cassé, volé, expiré…) : valeur au coût de revient, comptée dans le résultat
+  let lossValue = 0
+  projects.forEach((p) => (p.items || []).forEach((it) => {
+    if (f.productId && it.productId !== f.productId) return
+    ;(it.adjustments || []).filter((a) => a.kind === 'loss' && !a.cancelled && inRange(a.date || String(a.at).slice(0, 10), f.range)).forEach((a) => { lossValue += -Number(a.qty) * (Number(a.unitCostRef) || costing[p.id]?.perItem?.[it.id]?.unitCostRef || 0) })
+  }))
+
   const topItems = Object.values(byItem).sort((a, b) => b.qty - a.qty).slice(0, 5)
   const topProjects = Object.values(byProject).map((x) => ({ ...x, p: D.projects.find((p) => p.id === x.id) })).sort((a, b) => b.profit - a.profit).slice(0, 5)
 
   return {
     gross, discount, net, cogs, grossProfit: net - cogs, nbSales, avgBasket: nbSales ? net / nbSales : 0,
-    expGeneral, expProject, expGlobalProject, netResult: net - cogs - expGeneral - expGlobalProject,
+    expGeneral, expProject, expGlobalProject, lossValue, netResult: net - cogs - expGeneral - expGlobalProject - lossValue,
     cashIn, cashOut, fundPaid, treasury: cashIn - cashOut, treasuryAfter: cashIn - cashOut - fundPaid, fx, receivables, payables, unpaidInvoices, forecast,
     refs, available, outOfStock, lowStock, stockValue, slow, topItems, topProjects, byDay,
     activeProjects: D.projects.filter((p) => !['termine', 'archive'].includes(p.status)).length,
