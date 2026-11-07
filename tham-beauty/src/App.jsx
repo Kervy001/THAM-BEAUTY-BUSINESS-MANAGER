@@ -33,6 +33,8 @@ const loaders = {
   Messages: () => import('./pages/Messages.jsx'),
   Bundles: () => import('./pages/Bundles.jsx'),
   Fund: () => import('./pages/Fund.jsx'),
+  Journal: () => import('./pages/Journal.jsx'),
+  Losses: () => import('./pages/Losses.jsx'),
   Partners: () => import('./pages/Partners.jsx'),
   Associates: () => import('./pages/Associates.jsx'),
   Treasury: () => import('./pages/Treasury.jsx')
@@ -62,6 +64,8 @@ const Cash = page('Cash')
 const Inventory = page('Inventory')
 const Messages = page('Messages')
 const Fund = page('Fund')
+const Journal = page('Journal')
+const Losses = page('Losses')
 const Associates = page('Associates')
 const Treasury = page('Treasury')
 const Bundles = page('Bundles', 'Bundles')
@@ -99,6 +103,7 @@ const GROUPS = [
     { to: '/projets', label: 'Projets', icon: 'package', perm: ['projects.write', 'finance.read', 'stock.read', 'stock.write', 'payments.write', 'expenses.write'] },
     { to: '/fournisseurs', label: 'Fournisseurs', icon: 'truck', perm: ['suppliers.write', 'projects.write', 'payments.write', 'finance.read'] },
     { to: '/inventaire', label: 'Inventaire', icon: 'layers', perm: ['stock.write'] },
+    { to: '/pertes', label: 'Pertes de stock', icon: 'trash', perm: ['stock.write'] },
     { to: '/produits', label: 'Produits', icon: 'tag', perm: ['products.write', 'stock.read', 'sales.write', 'projects.write'] },
     { to: '/depenses', label: 'Dépenses', icon: 'wallet', perm: ['expenses.write', 'finance.read'] }
   ] },
@@ -106,6 +111,7 @@ const GROUPS = [
     { to: '/tresorerie', label: 'Trésorerie', icon: 'wallet', perm: ['finance.read'] },
     { to: '/fonds', label: 'Réinvestissement', icon: 'trend', adminOnly: true },
     { to: '/associes', label: 'Associés', icon: 'users', adminOnly: true },
+    { to: '/journal', label: 'Journal des actions', icon: 'receipt', perm: ['finance.read'] },
     { to: '/taux', label: 'Taux de change', icon: 'swap', perm: ['rates.write', 'finance.read', 'sales.write'] },
     { to: '/rapports', label: 'Rapports', icon: 'chart', perm: ['finance.read', 'export'] },
     { to: '/admin', label: 'Utilisateurs & réglages', icon: 'settings', perm: ['users.manage', 'settings.manage'] },
@@ -277,6 +283,8 @@ export default function App() {
             <Route path="/creances" element={<Receivables />} />
             <Route path="/caisse" element={<Cash />} />
             <Route path="/inventaire" element={<Inventory />} />
+            <Route path="/pertes" element={app.can('stock.write') ? <Losses /> : <Navigate to="/" />} />
+            <Route path="/journal" element={app.can('finance.read') ? <Journal /> : <Navigate to="/" />} />
             <Route path="/tresorerie" element={<Treasury />} />
             <Route path="/fonds" element={app.isAdmin ? <Fund /> : <Navigate to="/" />} />
             <Route path="/associes" element={app.isAdmin ? <Associates /> : <Navigate to="/" />} />
