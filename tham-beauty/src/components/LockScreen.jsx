@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Logo from './Logo.jsx'
 import Icon from './Icon.jsx'
 import { checkPin, getTries, setTries as setTriesStore, hasBio, pinLength, setPin, PIN_RE, unlockBio } from '../lib/security.js'
@@ -57,6 +57,7 @@ export function LockScreen({ uid, name, onUnlock, onLogout, verifyPassword }) {
   }
   useEffect(() => { if (bio) { const t = setTimeout(tryBio, 350); return () => clearTimeout(t) } }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const [shake, setShake] = useState(0)
   async function press(d) {
     if (busy) return
     const next = (pin + d).slice(0, len)
@@ -70,28 +71,47 @@ export function LockScreen({ uid, name, onUnlock, onLogout, verifyPassword }) {
     setPinVal('')
     setBusy(false)
     if (t >= MAX_TRIES) { setMode('password'); return } // trop d'essais : mot de passe du compte (sans se déconnecter)
+    setShake((n) => n + 1)
     setErr(`PIN incorrect (${MAX_TRIES - t} essai${MAX_TRIES - t > 1 ? 's' : ''} restant${MAX_TRIES - t > 1 ? 's' : ''}).`)
     navigator.vibrate?.(120)
   }
 
+  // Clavier d'ordinateur : chiffres pour saisir le PIN, Retour arrière pour effacer, Échap pour tout effacer
+  const pressRef = useRef(press)
+  pressRef.current = press
+  const pinRef = useRef(pin)
+  pinRef.current = pin
+  useEffect(() => {
+    if (mode !== 'pin') return
+    const onKey = (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return
+      if (/^[0-9]$/.test(e.key)) { e.preventDefault(); pressRef.current(e.key) }
+      else if (e.key === 'Backspace') { e.preventDefault(); setPinVal(pinRef.current.slice(0, -1)); setErr('') }
+      else if (e.key === 'Escape') { setPinVal(''); setErr('') }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [mode])
+
   return (
     <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-5 overflow-y-auto bg-ink px-6 py-8 text-white" style={{ paddingTop: 'max(2rem, env(safe-area-inset-top))', paddingBottom: 'max(2rem, env(safe-area-inset-bottom))' }}>
-      <Logo size={72} />
+      <Logo size={72} className="float-soft" />
       <div className="text-center">
         <div className="font-display text-xl font-semibold text-gold-300">Application verrouillée</div>
         {name && <div className="mt-1 text-sm text-neutral-400">{name}</div>}
       </div>
       {mode === 'pin' && (<>
-        <div className="flex gap-3" aria-label="Code PIN">
-          {Array.from({ length: len }, (_, i) => <span key={i} className={'h-3.5 w-3.5 rounded-full border border-gold-300 ' + (i < pin.length ? 'bg-gold-300' : 'bg-transparent')} />)}
+        <div key={shake} className={'flex gap-3 ' + (shake ? 'shake' : '')} aria-label="Code PIN">
+          {Array.from({ length: len }, (_, i) => <span key={i} className={'h-3.5 w-3.5 rounded-full border border-gold-300 transition-transform duration-150 ' + (i < pin.length ? 'scale-125 bg-gold-300' : 'bg-transparent')} />)}
         </div>
         <div className="h-5 text-sm text-blush-100">{err}</div>
         <div className="grid w-64 grid-cols-3 gap-3">
-          {KEYS.map((k) => <button key={k} type="button" onClick={() => press(k)} className="h-14 rounded-2xl bg-white/10 text-xl font-semibold active:bg-white/20">{k}</button>)}
+          {KEYS.map((k) => <button key={k} type="button" onClick={() => press(k)} className="h-14 rounded-2xl bg-white/10 text-xl font-semibold transition active:scale-95 active:bg-white/20">{k}</button>)}
           {bio ? <button type="button" onClick={tryBio} className="grid h-14 place-items-center rounded-2xl bg-white/5 text-gold-300 active:bg-white/20" aria-label="Utiliser l'empreinte"><Icon name="fingerprint" size={26} /></button> : <span />}
           <button type="button" onClick={() => press('0')} className="h-14 rounded-2xl bg-white/10 text-xl font-semibold active:bg-white/20">0</button>
           <button type="button" onClick={() => { setPinVal(pin.slice(0, -1)); setErr('') }} className="grid h-14 place-items-center rounded-2xl bg-white/5 text-neutral-300 active:bg-white/20" aria-label="Effacer"><Icon name="back" size={22} /></button>
         </div>
+        <p className="hidden text-xs text-neutral-500 lg:block">Vous pouvez aussi taper le PIN avec le clavier de l’ordinateur.</p>
         <button type="button" className="mt-2 text-sm text-neutral-400 underline" onClick={() => setMode('password')}>PIN oublié ?</button>
       </>)}
       {mode === 'password' && (
