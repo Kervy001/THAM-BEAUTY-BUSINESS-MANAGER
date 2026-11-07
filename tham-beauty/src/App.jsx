@@ -81,7 +81,7 @@ function ChatBadge({ dot, className = '' }) {
   const ch = useChat()
   const n = ch?.unreadCount || 0
   if (!n) return null
-  return dot ? <span className="absolute -right-1.5 -top-1 h-2.5 w-2.5 rounded-full bg-blush-500 ring-2 ring-ink" /> : <span className={'ml-auto grid h-5 min-w-[1.25rem] place-items-center rounded-full bg-blush-500 px-1.5 text-[10px] font-bold text-white ' + className}>{n}</span>
+  return dot ? <span className="absolute -right-1.5 -top-1 h-2.5 w-2.5 rounded-full bg-blush-500 ring-2 ring-white" /> : <span className={'ml-auto grid h-5 min-w-[1.25rem] place-items-center rounded-full bg-blush-500 px-1.5 text-[10px] font-bold text-white ' + className}>{n}</span>
 }
 
 function PageLoading() {
@@ -197,18 +197,18 @@ export default function App() {
   const badgeOf = (to) => (to === '/ventes' ? requestCount : to === '/corbeille' ? trashCount : 0)
   const navLink = (n) => (
     <NavLink key={n.to} to={n.to} end={n.end} onClick={() => setOpen(false)}
-      className={({ isActive }) => 'group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ' + (isActive ? 'bg-white/[0.07] text-gold-300' : 'text-neutral-400 hover:bg-white/5 hover:text-neutral-100')}>
+      className={({ isActive }) => 'group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ' + (isActive ? 'bg-blush-50 text-blush-600' : 'text-neutral-600 hover:bg-blush-50/70 hover:text-neutral-900')}>
       {({ isActive }) => (<>
-        {isActive && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-gradient-to-b from-gold-200 to-gold-500" />}
+        {isActive && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-gradient-to-b from-blush-400 to-gold-500" />}
         <Icon name={n.icon} size={18} />{n.label}
         {n.to === '/messages' && <ChatBadge />}
-        {badgeOf(n.to) > 0 && <span className={'ml-auto grid h-5 min-w-[1.25rem] place-items-center rounded-full px-1.5 text-[10px] font-bold ' + (n.to === '/ventes' ? 'bg-blush-500 text-white' : 'bg-white/10 text-neutral-300')}>{badgeOf(n.to)}</span>}
+        {badgeOf(n.to) > 0 && <span className={'ml-auto grid h-5 min-w-[1.25rem] place-items-center rounded-full px-1.5 text-[10px] font-bold ' + (n.to === '/ventes' ? 'bg-blush-500 text-white' : 'bg-neutral-200 text-neutral-600')}>{badgeOf(n.to)}</span>}
       </>)}
     </NavLink>
   )
   const tabLink = (n) => (
-    <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => 'flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-semibold ' + (isActive ? 'text-gold-300' : 'text-neutral-500')}>
-      <span className="relative"><Icon name={n.icon} size={21} />{n.to === '/messages' && <ChatBadge dot />}{badgeOf(n.to) > 0 && <span className="absolute -right-1.5 -top-1 h-2.5 w-2.5 rounded-full bg-blush-500 ring-2 ring-ink" />}</span>{n.label === 'Tableau de bord' ? 'Accueil' : n.label}
+    <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => 'flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-semibold ' + (isActive ? 'text-blush-600' : 'text-neutral-500')}>
+      <span className="relative"><Icon name={n.icon} size={21} />{n.to === '/messages' && <ChatBadge dot />}{badgeOf(n.to) > 0 && <span className="absolute -right-1.5 -top-1 h-2.5 w-2.5 rounded-full bg-blush-500 ring-2 ring-white" />}</span>{n.label === 'Tableau de bord' ? 'Accueil' : n.label}
     </NavLink>
   )
   const initial = (app.profile.name || app.profile.email || '?').trim().charAt(0).toUpperCase()
@@ -216,12 +216,12 @@ export default function App() {
   return (
     <ChatProvider>
     <div className="min-h-screen lg:flex">
-      <aside className={'no-print fixed inset-y-0 left-0 z-40 flex w-72 flex-col overflow-y-auto bg-ink p-4 transition-transform duration-200 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ' + (open ? 'translate-x-0 shadow-pop' : '-translate-x-full')}
-        style={{ backgroundImage: 'radial-gradient(120% 60% at 50% -10%, rgba(201,154,62,.22), transparent 60%)' }}>
+      <aside className={'no-print fixed inset-y-0 left-0 z-40 flex w-72 flex-col overflow-y-auto border-r border-line bg-white p-4 transition-transform duration-200 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ' + (open ? 'translate-x-0 shadow-pop' : '-translate-x-full')}
+        style={{ backgroundImage: 'radial-gradient(120% 50% at 50% -10%, rgba(244,122,168,.16), transparent 60%)' }}>
         <div className="mb-6 flex flex-col items-center pt-2 text-center">
           <Logo size={96} className="shadow-glow" />
           <div className="mt-3 font-display text-lg font-bold tracking-wide gold-text">THAM BEAUTY</div>
-          <div className="text-[10px] font-semibold uppercase tracking-[0.3em] text-blush-400">Business Manager</div>
+          <div className="text-[10px] font-semibold uppercase tracking-[0.3em] text-blush-500">Business Manager</div>
         </div>
         <nav className="flex-1 space-y-5">
           {groups.map((g) => (
@@ -231,16 +231,16 @@ export default function App() {
             </div>
           ))}
         </nav>
-        <div className="mt-5 flex items-center gap-3 rounded-2xl bg-white/5 p-3">
+        <div className="mt-5 flex items-center gap-3 rounded-2xl bg-paper p-3 ring-1 ring-line">
           <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-b from-gold-300 to-gold-600 font-bold text-ink">{initial}</div>
           <div className="min-w-0 flex-1 text-xs">
-            <div className="truncate font-semibold text-neutral-100">{app.profile.name || app.profile.email}</div>
+            <div className="truncate font-semibold text-neutral-900">{app.profile.name || app.profile.email}</div>
             <div className="truncate text-neutral-500">{roleLabel(app.settings, app.profile.role)}</div>
           </div>
-          {lock.pinSet && <button className="rounded-lg p-2 text-neutral-400 hover:bg-white/10 hover:text-gold-300" onClick={() => window.dispatchEvent(new Event('tb-lock-now'))} aria-label="Verrouiller"><Icon name="lock" size={17} /></button>}
-          <NotificationBell light className="rounded-lg p-2 text-neutral-400 hover:bg-white/10 hover:text-gold-300" />
-          <button className="rounded-lg p-2 text-neutral-400 hover:bg-white/10 hover:text-gold-300" onClick={theme.toggle} aria-label={theme.dark ? 'Mode clair' : 'Mode sombre'}><Icon name={theme.dark ? 'sun' : 'moon'} size={17} /></button>
-          <button className="rounded-lg p-2 text-neutral-400 hover:bg-white/10 hover:text-gold-300" onClick={app.logout} aria-label="Déconnexion"><Icon name="logout" size={17} /></button>
+          {lock.pinSet && <button className="rounded-lg p-2 text-neutral-500 hover:bg-black/5 hover:text-blush-600" onClick={() => window.dispatchEvent(new Event('tb-lock-now'))} aria-label="Verrouiller"><Icon name="lock" size={17} /></button>}
+          <NotificationBell light className="rounded-lg p-2 text-neutral-500 hover:bg-black/5 hover:text-blush-600" />
+          <button className="rounded-lg p-2 text-neutral-500 hover:bg-black/5 hover:text-blush-600" onClick={theme.toggle} aria-label={theme.dark ? 'Mode clair' : 'Mode sombre'}><Icon name={theme.dark ? 'sun' : 'moon'} size={17} /></button>
+          <button className="rounded-lg p-2 text-neutral-500 hover:bg-black/5 hover:text-blush-600" onClick={app.logout} aria-label="Déconnexion"><Icon name="logout" size={17} /></button>
         </div>
       </aside>
       {open && <div className="no-print fixed inset-0 z-30 bg-ink/60 backdrop-blur-[2px] lg:hidden" onClick={() => setOpen(false)} />}
@@ -300,11 +300,11 @@ export default function App() {
         </main>
       </div>
 
-      <nav className="no-print safe-bottom fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-ink/95 backdrop-blur lg:hidden">
+      <nav className="no-print safe-bottom fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white/95 backdrop-blur lg:hidden">
         <div className="mx-auto flex max-w-md items-end px-2">
           {bottomL.map(tabLink)}
           {canSell && (
-            <Link to="/ventes/nouvelle" className="-mt-5 mx-2 mb-2 grid h-14 w-14 shrink-0 place-items-center rounded-full bg-gradient-to-b from-gold-200 to-gold-500 text-ink shadow-glow ring-4 ring-ink" aria-label="Nouvelle vente"><Icon name="plus" size={26} strokeWidth={2.4} /></Link>
+            <Link to="/ventes/nouvelle" className="-mt-5 mx-2 mb-2 grid h-14 w-14 shrink-0 place-items-center rounded-full bg-gradient-to-br from-blush-400 to-blush-600 text-white shadow-rose ring-4 ring-white" aria-label="Nouvelle vente"><Icon name="plus" size={26} strokeWidth={2.4} /></Link>
           )}
           {canSell && bottomR.map(tabLink)}
         </div>

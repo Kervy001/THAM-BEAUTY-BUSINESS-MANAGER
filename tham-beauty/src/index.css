@@ -5,34 +5,36 @@
 html { -webkit-tap-highlight-color: transparent; }
 body {
   font-family: 'DM Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  background: #faf7f2;
-  color: #1a1714;
+  background: radial-gradient(900px 420px at 100% -5%, #ffe6ee 0%, transparent 65%), radial-gradient(700px 360px at -5% 105%, #fdecd2 0%, transparent 60%), #fff9f7;
+  background-attachment: fixed;
+  color: #2b1d24;
   -webkit-font-smoothing: antialiased;
   font-feature-settings: 'tnum' 1;
 }
 input, select, textarea { font-size: 16px; }
 h1, h2, h3 { letter-spacing: -0.01em; }
-::selection { background: #ebca7c; color: #0b0b0d; }
+::selection { background: #fba6c4; color: #2b1a24; }
 
 @layer components {
-  .btn { @apply inline-flex items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold transition duration-150 active:scale-[.97] disabled:pointer-events-none disabled:opacity-50; }
-  .btn-primary { @apply btn bg-ink text-gold-300 ring-1 ring-gold-500/40 hover:bg-ink-700 hover:ring-gold-400/70; }
+  .btn { @apply inline-flex items-center justify-center gap-1.5 rounded-2xl px-4 py-2.5 text-sm font-semibold transition duration-150 active:scale-[.97] disabled:pointer-events-none disabled:opacity-50; }
+  .btn-primary { @apply btn bg-gradient-to-b from-blush-400 to-blush-600 text-white shadow-rose hover:from-blush-300 hover:to-blush-500; }
   .btn-gold { @apply btn bg-gradient-to-b from-gold-300 to-gold-500 text-ink shadow-glow hover:from-gold-200 hover:to-gold-400; }
-  .btn-ghost { @apply btn bg-white text-neutral-800 ring-1 ring-line hover:bg-paper hover:ring-gold-400/60; }
+  .btn-ghost { @apply btn bg-white text-neutral-800 ring-1 ring-line hover:bg-blush-50 hover:ring-blush-300; }
   .btn-danger { @apply btn bg-blush-600 text-white hover:bg-blush-500; }
   .btn-sm { @apply rounded-lg px-2.5 py-1.5 text-xs; }
-  .input { @apply w-full rounded-xl border border-line bg-white px-3.5 py-2.5 text-sm text-neutral-900 placeholder:text-neutral-400 transition focus:border-gold-500 focus:outline-none focus:ring-2 focus:ring-gold-400/25; }
+  .input { @apply w-full rounded-2xl border border-line bg-white px-3.5 py-2.5 text-sm text-neutral-900 placeholder:text-neutral-400 transition focus:border-blush-400 focus:outline-none focus:ring-4 focus:ring-blush-400/15; }
   .label { @apply mb-1.5 block text-[13px] font-medium text-neutral-600; }
-  .card { @apply rounded-2xl border border-line bg-white p-4 shadow-card; }
-  .th { @apply whitespace-nowrap px-3 py-2.5 text-left text-xs font-medium text-neutral-500; }
+  .card { @apply rounded-3xl border border-white bg-white p-5 shadow-card ring-1 ring-line/70; }
+  .th { @apply whitespace-nowrap px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-neutral-400; }
   .td { @apply px-3 py-3 align-top text-sm; }
   .section-title { @apply mb-3 flex items-center gap-3 font-display text-lg font-semibold text-neutral-900; }
   .section-title::after { content: ''; @apply h-px flex-1 bg-line; }
-  .gold-text { @apply bg-gradient-to-b from-gold-200 via-gold-400 to-gold-600 bg-clip-text text-transparent; }
+  .gold-text { @apply bg-gradient-to-b from-gold-300 via-gold-500 to-gold-700 bg-clip-text text-transparent; }
+  .login-bg { background: radial-gradient(90% 60% at 50% 0%, rgba(244,122,168,.30), transparent 60%), radial-gradient(60% 40% at 90% 100%, rgba(224,178,92,.32), transparent 60%), #fff9f7; }
 }
 
 tbody tr { transition: background-color .12s; }
-tbody tr:hover { background: #fcfaf6; }
+tbody tr:hover { background: #fff5f8; }
 
 @keyframes pop-in { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
 .pop-in { animation: pop-in .18s ease-out both; }
@@ -58,7 +60,13 @@ tbody tr:hover { background: #fcfaf6; }
    Limité à l'écran : l'impression (factures, reçus, étiquettes) reste toujours blanche. */
 @media screen {
   html.dark { color-scheme: dark; }
-  html.dark body { background: #0e0e11; color: #ece7dd; }
+  html.dark body { background: #0e0e11; color: #ece7dd; background-image: none; }
+  html.dark .login-bg { background: radial-gradient(90% 60% at 50% 0%, rgba(201,154,62,.30), transparent 60%), radial-gradient(60% 40% at 90% 100%, rgba(240,86,143,.18), transparent 60%), #0b0b0d; }
+  html.dark .card { border-color: #2b2b33; }
+  html.dark .btn-primary { background-image: none; background-color: #25252d; box-shadow: none; }
+  html.dark .btn-primary:hover { background-image: none; }
+  html.dark .hover\:bg-blush-50:hover { background-color: #25252d; }
+  html.dark .bg-ink { background-color: #1a1219; }
   html.dark ::selection { background: #a87d2a; color: #fff; }
 
   /* surfaces */
@@ -98,6 +106,7 @@ tbody tr:hover { background: #fcfaf6; }
   html.dark .border-line, html.dark [class*="border-line"] { border-color: #2b2b33; }
   html.dark .border-neutral-100, html.dark .border-neutral-200 { border-color: #2b2b33; }
   html.dark .ring-line { --tw-ring-color: #2b2b33; }
+  html.dark [class*="ring-line"] { --tw-ring-color: #2b2b33; }
   html.dark .bg-line { background-color: #2b2b33; }
   html.dark [class*="divide-line"] > :not([hidden]) ~ :not([hidden]) { border-color: #2b2b33; }
   html.dark .ring-paper { --tw-ring-color: #0e0e11; }
