@@ -14,8 +14,8 @@ export default function Treasury() {
   return <PrivacyCtx.Provider value={hidden}><TreasuryInner hidden={hidden} toggle={toggle} /></PrivacyCtx.Provider>
 }
 
-const IN_KINDS = ['vente', 'depot']
-const OUT_KINDS = ['depense_generale', 'depense_projet', 'fournisseur', 'remboursement', 'retrait', 'fonds']
+const IN_KINDS = ['vente', 'depot', 'apport']
+const OUT_KINDS = ['depense_generale', 'depense_projet', 'fournisseur', 'remboursement', 'retrait', 'fonds', 'remb_associe', 'distribution']
 
 function TreasuryInner({ hidden, toggle }) {
   const app = useApp()
@@ -86,6 +86,23 @@ function TreasuryInner({ hidden, toggle }) {
           <Notice key={i} tone={t.tone}>{t.text}{t.to && <> <Link className="font-semibold underline" to={t.to}>{t.cta} →</Link></>}</Notice>
         ))}
       </div>
+
+      <section className="card mb-5">
+        <h3 className="mb-1 font-display text-base font-semibold">Résumé de la caisse · {rangeLabel}</h3>
+        <p className="mb-3 text-xs text-neutral-500">Argent disponible = solde de départ + tout ce qui est rentré − ce qui a été réinvesti dans les projets − les dépenses.</p>
+        <div className="space-y-1">
+          <MoneyRow label="Solde de la caisse au début" v={T.balanceStart} cur={ref} />
+          <MoneyRow label="＋ Ventes encaissées et dépôts" v={T.in - T.apports} cur={ref} />
+          {T.apports > 0.004 && <MoneyRow label="＋ Argent avancé par les associés" v={T.apports} cur={ref} />}
+          <MoneyRow label="− Réinvesti dans les projets (achats de stock)" v={-((T.byKind.fournisseur || 0) + (T.byKind.fonds || 0))} cur={ref} />
+          <MoneyRow label="− Dépenses" v={-T.expensesCash} cur={ref} />
+          {((T.byKind.remboursement || 0) + (T.byKind.retrait || 0)) > 0.004 && <MoneyRow label="− Remboursements clients et retraits" v={-((T.byKind.remboursement || 0) + (T.byKind.retrait || 0))} cur={ref} />}
+          {(T.byKind.remb_associe || 0) > 0.004 && <MoneyRow label="− Remboursé aux associés" v={-T.byKind.remb_associe} cur={ref} />}
+          {(T.byKind.distribution || 0) > 0.004 && <MoneyRow label="− Parts distribuées aux associés" v={-T.byKind.distribution} cur={ref} />}
+          <MoneyRow strong label="＝ Argent disponible dans la caisse" v={T.balanceEnd} cur={ref} />
+        </div>
+        {T.stockBought > 0.004 && <p className="mt-3 text-xs text-neutral-500">Stock acheté sur la période : <b>{fm(T.stockBought, ref)}</b>{T.apports > 0.004 && <> (dont une partie avancée par les associés : {fm(T.apports, ref)} d’apports au total)</>}.</p>}
+      </section>
 
       <div className="mb-5 grid gap-4 md:grid-cols-2">
         <Ledger title="Entrées de la période">

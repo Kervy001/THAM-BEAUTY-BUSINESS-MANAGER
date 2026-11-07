@@ -7,6 +7,7 @@ import { STATUS_PROJECT, PAY_STATUS, fdate, fdt, money, nowIso, today, uid } fro
 import { Badge, Empty, Input, Modal, MoneyStat, Notice, NumberInput, PageHeader, PasswordConfirm, Select, Stat, Table, Tabs, Textarea, payTone } from '../components/ui.jsx'
 import Icon from '../components/Icon.jsx'
 import PaymentModal from '../components/PaymentModal.jsx'
+import { fundingOf } from '../lib/partners.js'
 import { ExpenseModal } from './Expenses.jsx'
 
 const statusTone = (s) => ({ brouillon: 'gray', confirme: 'blue', paye: 'blue', expedition: 'amber', partiel: 'amber', recu: 'green', vente: 'gold', termine: 'green', archive: 'gray' }[s] || 'gray')
@@ -506,7 +507,7 @@ function PurchaseTab({ p, hist }) {
               <tr key={x.id} className={x.status === 'annule' ? 'opacity-50 line-through' : ''}>
                 <td className="td">{fdate(x.date)}</td><td className="td">{money(x.amount, x.currency)}<div className="text-xs text-neutral-500">taux {x.rate}</div></td>
                 <td className="td">{money(x.currency === p.currency ? x.amount : convert(x.amount, x.currency, p.currency, x.rate), p.currency)}</td>
-                <td className="td">{x.fundMoveId ? <Badge tone="amber">Fonds réinvestissement</Badge> : x.method}</td>
+                <td className="td">{x.fundMoveId ? <Badge tone="amber">Fonds réinvestissement</Badge> : x.method}{fundingOf(x).map((f, i) => <div key={i} className="text-[11px] text-neutral-500">dont {f.name || 'associé'} : {f.amount} {x.currency}</div>)}</td>
                 <td className="td"><div className="flex flex-wrap items-center gap-1">{canPay && x.status !== 'annule' && (!x.fundMoveId || app.isAdmin) && <button className="btn-ghost btn-sm" onClick={() => cancel(x)}>Annuler</button>}
                   {app.isAdmin && <>{!x.fundMoveId && <button className="btn-ghost btn-sm" onClick={() => setPayEdit(x)} aria-label="Modifier">✎</button>}<button className="btn-ghost btn-sm !text-blush-600" onClick={() => setPayDel(x)} aria-label="Supprimer">🗑</button></>}</div></td>
               </tr>
@@ -514,8 +515,8 @@ function PurchaseTab({ p, hist }) {
           </Table>
         </div>
       )}
-      {pay && <PaymentModal title="Paiement fournisseur" opCurrency={p.currency} opRate={p.rate} remaining={s.balance} onSave={addPayment} onClose={() => setPay(false)} />}
-      {payEdit && <PaymentModal title="Modifier le paiement fournisseur" payment={payEdit} opCurrency={p.currency} opRate={p.rate} remaining={0} onSave={editPayment} onClose={() => setPayEdit(null)} />}
+      {pay && <PaymentModal withSource title="Paiement fournisseur" opCurrency={p.currency} opRate={p.rate} remaining={s.balance} onSave={addPayment} onClose={() => setPay(false)} />}
+      {payEdit && <PaymentModal withSource title="Modifier le paiement fournisseur" payment={payEdit} opCurrency={p.currency} opRate={p.rate} remaining={0} onSave={editPayment} onClose={() => setPayEdit(null)} />}
       {payDel && (
         <PasswordConfirm title="Supprimer ce paiement ?" confirmLabel="Supprimer définitivement" askReason verify={app.verifyPassword}
           onConfirm={async (reason) => {

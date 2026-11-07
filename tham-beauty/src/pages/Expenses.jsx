@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { arrayUnion } from 'firebase/firestore'
 import { useApp } from '../lib/store.jsx'
 import { convert } from '../lib/calc.js'
+import FundingPicker from '../components/FundingPicker.jsx'
+import { fundingOf } from '../lib/partners.js'
 import { GENERAL_CATEGORIES, METHODS, money, today, fdate, nowIso, uid } from '../lib/util.js'
 import { Badge, Empty, Input, Modal, NumberInput, PageHeader, PasswordConfirm, Select, Table, Textarea } from '../components/ui.jsx'
 
@@ -10,9 +12,9 @@ export function ExpenseModal({ projectId, expense, onClose }) {
   const editing = !!expense
   if (editing) projectId = expense.projectId || ''
   const cats = projectId ? app.settings.expenseCategories : GENERAL_CATEGORIES
-  const [e, setE] = useState(editing ? { ...expense, amount: String(expense.amount ?? ''), rate: String(expense.rate ?? app.rate), global: !!expense.global } : {
+  const [e, setE] = useState(editing ? { ...expense, amount: String(expense.amount ?? ''), rate: String(expense.rate ?? app.rate), global: !!expense.global, funding: fundingOf(expense).map((f) => ({ ...f, amount: String(f.amount) })) } : {
     projectId: projectId || '', date: today(), category: cats[0], description: '', payee: '', amount: '', currency: 'USD',
-    rate: String(app.rate), method: 'Espèces', reference: '', comment: '', global: true
+    rate: String(app.rate), method: 'Espèces', funding: [], reference: '', comment: '', global: true
   })
   const [busy, setBusy] = useState(false)
   const set = (k) => (v) => setE({ ...e, [k]: v })
@@ -21,17 +23,20 @@ export function ExpenseModal({ projectId, expense, onClose }) {
   async function submit(ev) {
     ev.preventDefault()
     if (!(Number(e.amount) > 0)) return
+    const funding = (e.funding || []).filter((f) => Number(f.amount) > 0).map((f) => ({ partnerId: f.partnerId, name: f.name, amount: Number(f.amount) }))
+    if (funding.some((f) => !f.partnerId)) return alert('Choisissez l’associé pour chaque montant.')
+    if (funding.reduce((t, f) => t + f.amount, 0) > Number(e.amount) + 0.005) return alert('Les montants des associés dépassent la dépense.')
     setBusy(true)
     try {
       if (editing) {
         const { id: _id, _ts, ...rest } = e
-        await app.save('expenses', expense.id, { ...rest, amount: Number(e.amount), rate: Number(e.rate), convertedRef: converted, refCurrency: app.ref, global: !!(projectId && e.global) }, 'modification dépense')
+        await app.save('expenses', expense.id, { ...rest, funding, source: null, amount: Number(e.amount), rate: Number(e.rate), convertedRef: converted, refCurrency: app.ref, global: !!(projectId && e.global) }, 'modification dépense')
         if (projectId) await app.save('projects', projectId, { history: arrayUnion({ at: nowIso(), by: app.profile?.name || '', text: `Dépense ${expense.number} modifiée : ${e.category} ${e.amount} ${e.currency} (taux ${e.rate})` }) })
         onClose(expense.id)
         return
       }
       const number = await app.nextNumber('DEP')
-      const rec = { ...e, number, amount: Number(e.amount), rate: Number(e.rate), convertedRef: converted, refCurrency: app.ref, status: 'valide', kind: e.projectId ? 'projet' : 'general', global: !!(e.projectId && e.global) }
+      const rec = { ...e, funding, number, amount: Number(e.amount), rate: Number(e.rate), convertedRef: converted, refCurrency: app.ref, status: 'valide', kind: e.projectId ? 'projet' : 'general', global: !!(e.projectId && e.global) }
       const id = await app.save('expenses', null, rec, 'dépense')
       if (e.projectId) {
         await app.save('projects', e.projectId, { history: arrayUnion({ at: nowIso(), by: app.profile?.name || '', text: `Dépense ${number} : ${e.category} ${e.amount} ${e.currency} (taux ${e.rate})` }) })
@@ -63,6 +68,7 @@ export function ExpenseModal({ projectId, expense, onClose }) {
           <Input label="Bénéficiaire" value={e.payee} onChange={(x) => set('payee')(x.target.value)} />
           <Select label="Moyen de paiement" value={e.method} onChange={set('method')} options={METHODS} />
         </div>
+        <FundingPicker value={e.funding || []} onChange={set('funding')} total={Number(e.amount) || 0} currency={e.currency} />
         <Input label="Référence de transaction" value={e.reference} onChange={(x) => set('reference')(x.target.value)} />
         <Textarea label="Commentaire" value={e.comment} onChange={(x) => set('comment')(x.target.value)} />
         <button className="btn-primary w-full" disabled={busy}>{busy ? '…' : editing ? 'Enregistrer les modifications' : 'Enregistrer la dépense'}</button>
