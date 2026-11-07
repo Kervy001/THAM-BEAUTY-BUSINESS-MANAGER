@@ -145,6 +145,7 @@ function DashboardInner({ hidden, toggle }) {
             <MoneyRow label="Coût des marchandises vendues" v={m.cogs} cur={r} />
             <MoneyRow strong signed label="Bénéfice réalisé (marge brute)" sub={pctSub(m.net, m.cogs)} v={m.grossProfit} cur={r} />
             <MoneyRow label="Dépenses générales" v={m.expGeneral} cur={r} />
+            {m.lossValue > 0.004 && <MoneyRow label="Pertes de stock (cassé, volé, expiré…)" v={m.lossValue} cur={r} />}
             {m.expGlobalProject > 0.004 && <MoneyRow label="Frais globaux de projets" sub="banque, douane, transport…" v={m.expGlobalProject} cur={r} />}
             <MoneyRow strong signed label="Résultat après frais généraux" v={m.netResult} cur={r} />
             <MoneyRow signed label="Bénéfice prévisionnel (projets en cours)" v={m.forecast} cur={r} />

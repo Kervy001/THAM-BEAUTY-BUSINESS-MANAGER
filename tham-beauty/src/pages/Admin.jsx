@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createUserWithEmailAndPassword } from 'firebase/auth'
 import { deleteField, doc, setDoc } from 'firebase/firestore'
 import { db, withSecondaryAuth } from '../lib/firebase.js'
@@ -324,8 +324,49 @@ function Backup() {
     } catch { setFile(null); setMsg('Ce fichier n’est pas une sauvegarde THAM BEAUTY valide.') }
   }
   const counts = app.exportAll().collections
+  const [cloud, setCloud] = useState(null)
+  const [busy, setBusy] = useState('')
+  const [askCloud, setAskCloud] = useState(null)
+  const loadList = () => app.listCloudBackups().then(setCloud).catch(() => setCloud([]))
+  useEffect(() => { loadList() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  async function backupNow() {
+    setBusy('save'); setMsg('')
+    try { await app.cloudBackup(false); setMsg('Copie enregistrée dans Firebase ✓'); await loadList() } catch (ex) { setMsg(ex.code === 'permission-denied' ? 'Refusé : publiez les nouvelles règles Firestore (firestore.rules).' : ex.message) }
+    setBusy('')
+  }
+  async function downloadCloud(b) {
+    setBusy(b.id); setMsg('')
+    try {
+      const json = await app.loadCloudBackup(b)
+      const url = URL.createObjectURL(new Blob([JSON.stringify(json)], { type: 'application/json' }))
+      const a = document.createElement('a'); a.href = url; a.download = `tham-beauty-sauvegarde-${String(b.at).slice(0, 10)}.json`
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000)
+    } catch (ex) { setMsg(ex.message) }
+    setBusy('')
+  }
   return (
     <div className="space-y-4">
+      <div className="card space-y-3">
+        <div className="font-display text-base font-semibold">Sauvegarde automatique (Firebase)</div>
+        <p className="text-sm text-neutral-600">Chaque semaine, quand vous ouvrez l’application, une copie complète est enregistrée dans Firebase. Les 4 dernières copies sont gardées. Vous pouvez aussi la télécharger sur votre appareil ou la restaurer.</p>
+        <Select label="Sauvegarde automatique" value={app.settings.backup?.auto === false ? 'non' : 'oui'} onChange={(v) => app.saveSettings({ backup: { auto: v === 'oui' } }, 'réglage sauvegarde automatique')} options={[{ value: 'oui', label: 'Activée (chaque semaine)' }, { value: 'non', label: 'Désactivée' }]} />
+        <button className="btn-gold" disabled={busy === 'save'} onClick={backupNow}><Icon name="cloud" size={16} />{busy === 'save' ? 'Sauvegarde…' : 'Sauvegarder maintenant dans Firebase'}</button>
+        {cloud === null ? <div className="text-sm text-neutral-500">Chargement…</div> : !cloud.length ? <Empty>Aucune copie dans Firebase pour le moment.</Empty> : (
+          <Table head={['Date', 'Type', 'Taille', '']}>
+            {cloud.map((b) => (
+              <tr key={b.id}><td className="td whitespace-nowrap">{fdt(b.at)}</td><td className="td text-xs">{b.auto ? 'Automatique' : 'Manuelle'} · {b.by}</td><td className="td text-xs">{Math.round((b.size || 0) / 1024)} Ko</td>
+                <td className="td"><div className="flex gap-1"><button className="btn-ghost btn-sm" disabled={busy === b.id} onClick={() => downloadCloud(b)}>Télécharger</button><button className="btn-ghost btn-sm !text-blush-600" onClick={() => setAskCloud(b)}>Restaurer</button></div></td></tr>
+            ))}
+          </Table>
+        )}
+      </div>
+      {askCloud && (
+        <PasswordConfirm title="Restaurer cette copie ?" confirmLabel="Restaurer" verify={app.verifyPassword}
+          onConfirm={async () => { const json = await app.loadCloudBackup(askCloud); const n = await app.restoreAll(json); setMsg(`Restauration terminée : ${n} éléments écrits ✓`) }}
+          onClose={() => setAskCloud(null)}>
+          <p>Les données de la copie du {fdt(askCloud.at)} vont être écrites dans l’application (fusion : rien n’est supprimé).</p>
+        </PasswordConfirm>
+      )}
       <div className="card space-y-3">
         <div className="font-display text-base font-semibold">Sauvegarder</div>
         <p className="text-sm text-neutral-600">Télécharge toutes vos données (produits, clients, fournisseurs, projets, dépenses, ventes, inventaires, clôtures de caisse, réglages) dans un fichier. Faites-le régulièrement, par exemple chaque semaine.</p>
