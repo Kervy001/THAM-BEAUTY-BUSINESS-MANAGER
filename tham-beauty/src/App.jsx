@@ -304,7 +304,7 @@ export default function App() {
         <div className="mx-auto flex max-w-md items-end px-2">
           {bottomL.map(tabLink)}
           {canSell && (
-            <Link to="/ventes/nouvelle" className="-mt-5 mx-2 mb-2 grid h-14 w-14 shrink-0 place-items-center rounded-full bg-gradient-to-br from-blush-400 to-blush-600 text-white shadow-rose ring-4 ring-white" aria-label="Nouvelle vente"><Icon name="plus" size={26} strokeWidth={2.4} /></Link>
+            <Link to="/ventes/nouvelle" className="-mt-5 mx-2 mb-2 grid h-14 w-14 shrink-0 place-items-center rounded-full bg-gradient-to-br from-blush-400 to-blush-600 text-white shadow-rose ring-4 ring-white fab-pulse" aria-label="Nouvelle vente"><Icon name="plus" size={26} strokeWidth={2.4} /></Link>
           )}
           {canSell && bottomR.map(tabLink)}
         </div>
