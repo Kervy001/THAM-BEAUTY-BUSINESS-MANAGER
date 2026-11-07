@@ -3,12 +3,14 @@
 // Les paiements fournisseurs financés par le fonds de réinvestissement sont isolés (« Réinvesti via le fonds ») :
 // ils ne changent ni le chiffre d'affaires, ni le bénéfice, ni les calculs des projets.
 import { convert, inRange, purchaseSummary, round2, saleSummary } from './calc.js'
+import { contributions, partnerCashMoves } from './partners.js'
 
 const parseD = (d) => (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d) ? new Date(d + 'T12:00:00') : new Date(d))
 
 export const KINDS = {
   vente: 'Ventes encaissées', depot: 'Dépôts externes (fonds)',
   remboursement: 'Remboursements clients', depense_generale: 'Dépenses générales', depense_projet: 'Dépenses de projets',
+  apport: 'Apports des associés', remb_associe: 'Remboursements aux associés', distribution: 'Distributions aux associés',
   fournisseur: 'Paiements fournisseurs', fonds: 'Réinvesti via le fonds', retrait: 'Retraits (prélèvements)'
 }
 
@@ -31,6 +33,9 @@ export function cashEvents(D, ref) {
   ;(D.fundMoves || []).filter((m) => m.status !== 'annule' && (m.type === 'withdraw' || m.type === 'deposit')).forEach((m) => {
     add({ date: m.date, dir: m.type === 'deposit' ? 'in' : 'out', kind: m.type === 'deposit' ? 'depot' : 'retrait', amount: m.amount, currency: m.currency, rate: m.rate, method: 'Fonds', label: m.note || '', to: '/fonds' })
   })
+  // Apports des associés (entrées) : un paiement payé en partie par un associé = entrée « apport » + sortie complète
+  contributions(D, ref).forEach((c) => add({ date: c.date, dir: 'in', kind: 'apport', amount: c.amount, currency: c.currency, rate: c.rate, method: 'Associé', label: `${c.name} · ${c.label}`, to: '/associes' }))
+  partnerCashMoves(D, ref).forEach((m) => add({ ...m, dir: 'out', method: 'Associé' }))
   return ev
 }
 
@@ -86,6 +91,7 @@ export function treasuryReport(D, ref, range, { opening = 0, now = Date.now() } 
   const top = (l) => l.sort((a, b) => b.value - a.value).slice(0, 5).map((x) => ({ ...x, value: round2(x.value) }))
 
   return {
+    apports: round2(byKind.apport || 0), stockBought: round2((byKind.fournisseur || 0) + (byKind.fonds || 0)), expensesCash: round2((byKind.depense_generale || 0) + (byKind.depense_projet || 0)),
     events: per.map((e) => ({ ...e, amountRef: round2(e.amountRef) })), count: per.length,
     in: round2(inn), out: round2(out), net: round2(inn - out), balanceStart: round2(balanceStart), balanceEnd: round2(balanceEnd), byKind, byMethod, byCurrency, byDay,
     cumulative: { in: round2(cumIn), out: round2(cumOut), net: round2(cumIn - cumOut) }, balance: round2(balance),

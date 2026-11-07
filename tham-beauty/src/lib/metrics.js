@@ -1,3 +1,4 @@
+import { partnerPeriodTotals } from './partners.js'
 import { convert, inRange, itemStock, projectStats, purchaseSummary, saleSummary, saleProfit, saleTotals, salePayments } from './calc.js'
 
 // Calcule tous les indicateurs à partir des données réelles. f = { range, projectId, customerId, supplierId, productId, currency }
@@ -50,6 +51,8 @@ export function computeMetrics({ D, costing, ref, rate, settings }, f) {
   let supplierPaid = 0, fundPaid = 0
   projects.forEach((p) => (p.supplierPayments || []).filter((x) => x.status !== 'annule' && inRange(x.date, f.range)).forEach((x) => { const v = convert(x.amount, x.currency, ref, x.rate); if (x.fundMoveId) fundPaid += v; else supplierPaid += v }))
   cashOut += expProject + expGeneral + supplierPaid
+  // Associés : leurs apports sont des entrées ; remboursements et distributions sont des sorties (sans filtre de projet/client)
+  if (!f.projectId && !f.customerId && !f.supplierId && !f.productId) { const pt = partnerPeriodTotals(D, ref, f.range); cashIn += pt.apports; cashOut += pt.sorties }
 
   // Créances / dettes (à date)
   let receivables = 0, unpaidInvoices = 0
