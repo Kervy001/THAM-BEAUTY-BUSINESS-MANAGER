@@ -106,12 +106,12 @@ export default function Login() {
 
 function Shell({ children }) {
   return (
-    <div className="grid min-h-screen place-items-center p-4" style={{ background: 'radial-gradient(90% 60% at 50% 0%, rgba(201,154,62,.30), transparent 60%), radial-gradient(60% 40% at 90% 100%, rgba(240,86,143,.18), transparent 60%), #0b0b0d' }}>
+    <div className="login-bg grid min-h-screen place-items-center p-4">
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
           <Logo size={150} className="mx-auto shadow-glow" />
           <div className="mt-4 font-display text-2xl font-bold tracking-wide gold-text">THAM BEAUTY</div>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.35em] text-blush-400">Business Manager</div>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.35em] text-blush-500">Business Manager</div>
         </div>
         <div className="slide-up rounded-3xl bg-white p-6 shadow-pop">{children}</div>
         <p className="mt-4 text-center text-[11px] text-neutral-500">Fonctionne aussi hors ligne après la première connexion</p>

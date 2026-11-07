@@ -15,7 +15,7 @@ const dayLabel = (t) => {
 }
 const initialOf = (s) => (s || '?').trim().charAt(0).toUpperCase()
 const Avatar = ({ text, tone = 'user', size = 40 }) => (
-  <div style={{ width: size, height: size }} className={'grid shrink-0 place-items-center rounded-full text-sm font-bold ' + (tone === 'group' ? 'bg-ink text-gold-300' : tone === 'announce' ? 'bg-blush-500 text-white' : 'bg-gradient-to-b from-gold-300 to-gold-600 text-ink')}>{text}</div>
+  <div style={{ width: size, height: size }} className={'grid shrink-0 place-items-center rounded-full text-sm font-bold ' + (tone === 'group' ? 'bg-blush-100 text-blush-600' : tone === 'announce' ? 'bg-blush-500 text-white' : 'bg-gradient-to-b from-gold-300 to-gold-600 text-ink')}>{text}</div>
 )
 const iconFor = (c) => (c.type === 'announce' ? <Avatar tone="announce" text="📢" /> : c.type === 'general' || c.type === 'group' ? <Avatar tone="group" text={c.type === 'general' ? '#' : initialOf(c.title)} /> : <Avatar text={initialOf(c.title)} />)
 const preview = (c) => (!c.lastMessage ? (c.type === 'announce' ? 'Annonces de l’administration' : c.type === 'general' ? 'Discussion de toute l’équipe' : 'Aucun message') : `${c.lastMessage.by ? (c.type === 'dm' ? '' : c.lastMessage.byName + ' : ') : ''}${c.lastMessage.image && !c.lastMessage.text ? '📷 Photo' : c.lastMessage.text}`)
@@ -254,7 +254,7 @@ function NewChat({ onClose, onOpen }) {
         {app.isAdmin && (
           <div className="grid grid-cols-2 gap-1 rounded-2xl bg-paper p-1">
             {[['dm', 'Message privé'], ['group', 'Groupe']].map(([k, l]) => (
-              <button key={k} className={'rounded-xl px-3 py-2 text-sm font-semibold ' + (mode === k ? 'bg-ink text-gold-300' : 'text-neutral-500')} onClick={() => { setMode(k); setSel([]) }}>{l}</button>
+              <button key={k} className={'rounded-xl px-3 py-2 text-sm font-semibold ' + (mode === k ? 'bg-blush-500 text-white' : 'text-neutral-500')} onClick={() => { setMode(k); setSel([]) }}>{l}</button>
             ))}
           </div>
         )}
