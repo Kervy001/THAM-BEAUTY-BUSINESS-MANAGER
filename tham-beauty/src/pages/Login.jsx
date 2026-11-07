@@ -109,7 +109,7 @@ function Shell({ children }) {
     <div className="login-bg grid min-h-screen place-items-center p-4">
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
-          <Logo size={150} className="mx-auto shadow-glow" />
+          <Logo size={150} className="float-soft mx-auto shadow-glow" />
           <div className="mt-4 font-display text-2xl font-bold tracking-wide gold-text">THAM BEAUTY</div>
           <div className="text-[11px] font-semibold uppercase tracking-[0.35em] text-blush-500">Business Manager</div>
         </div>
