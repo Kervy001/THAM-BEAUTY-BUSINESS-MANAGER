@@ -149,6 +149,9 @@ service cloud.firestore {
       allow read, create, update: if isAdmin();
       allow delete: if false;
     }
+    // Copies de sauvegarde automatiques (administrateur seulement)
+    match /backups/{id} { allow read, create, delete: if isAdmin(); allow update: if false; }
+    match /backupParts/{id} { allow read, create, delete: if isAdmin(); allow update: if false; }
     match /audit/{id} {
       allow read: if isAdmin() || can('finance.read');
       allow create: if active() && request.resource.data.get('userId', request.auth.uid) == request.auth.uid;
