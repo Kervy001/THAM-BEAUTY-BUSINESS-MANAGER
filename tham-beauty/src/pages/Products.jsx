@@ -8,7 +8,7 @@ import Icon from '../components/Icon.jsx'
 import { Badge, Empty, Input, Modal, NumberInput, PageHeader, Select, Table, Textarea } from '../components/ui.jsx'
 
 const blank = () => ({ kind: 'general', name: '', sku: '', barcode: '', category: '', brand: '', description: '', photo: '', supplierId: '', unit: 'pièce', active: true, variants: [] })
-const blankVar = () => ({ id: uid(), label: '', sku: '', barcode: '', color: '', size: '', detail: '', texture: '', density: '', material: '', closure: '', price: '', priceCurrency: 'USD', active: true })
+const blankVar = () => ({ id: uid(), label: '', sku: '', barcode: '', color: '', size: '', detail: '', texture: '', density: '', material: '', closure: '', price: '', wholesalePrice: '', priceCurrency: 'USD', active: true })
 // Type d'attributs des variantes : « cheveux » (texture, densité, fermeture) ou « général » (taille, détail libre).
 // Les anciens produits sont reconnus automatiquement pour ne perdre aucune information.
 const HAIR_WORDS = /perruq|lace|extension|cheveu|bundle|frontal|closure|wig|tissage/i
@@ -60,7 +60,7 @@ export default function Products() {
       }
     }
     const { id, ...v } = p
-    v.variants = v.variants.map((x) => ({ ...x, price: x.price === '' ? 0 : Number(x.price) }))
+    v.variants = v.variants.map((x) => ({ ...x, price: x.price === '' ? 0 : Number(x.price), wholesalePrice: x.wholesalePrice === '' || x.wholesalePrice == null ? 0 : Number(x.wholesalePrice) }))
     await app.save('products', id, v, id ? 'modification produit' : 'création produit')
     if (!id) app.notify('Produit enregistré. Pour le vendre, ajoutez-le au stock (bouton « Ajouter au stock »).')
     setEdit(null)
@@ -149,6 +149,7 @@ export default function Products() {
                         <div className="mt-1 flex gap-1.5"><button type="button" className="text-xs underline" onClick={() => setScanFor(i)}>Scanner</button><button type="button" className="text-xs underline" onClick={() => setV(i, 'barcode', makeCode())}>Générer</button></div>
                       </div>
                       <NumberInput label="Prix habituel" value={v.price} onChange={(x) => setV(i, 'price', x)} />
+                      <NumberInput label="Prix de gros (même devise)" value={v.wholesalePrice ?? ''} onChange={(x) => setV(i, 'wholesalePrice', x)} />
                       <Select label="Devise" value={v.priceCurrency} onChange={(x) => setV(i, 'priceCurrency', x)} options={['USD', 'HTG']} />
                       <Input label="Couleur" value={v.color} onChange={(e) => setV(i, 'color', e.target.value)} />
                       {edit.kind === 'cheveux' ? (

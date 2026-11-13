@@ -7,13 +7,16 @@ import { downloadCSV, money, nowIso, today, uid } from '../lib/util.js'
 import Icon from '../components/Icon.jsx'
 import { Badge, Empty, Input, Modal, Notice, NumberInput, PageHeader, PasswordConfirm, Select, Table } from '../components/ui.jsx'
 import Scanner from '../components/Scanner.jsx'
+import { useWedgeScanner } from '../lib/wedge.js'
+import { scanBeep } from '../lib/alerts.js'
+import { getPrintPrefs } from '../lib/printing.js'
 import { lookupCode, normCode, codeOf } from '../lib/codes.js'
 
 export const STOCK_PROJECT_ID = 'stock-direct'
 
 export default function Stock() {
   const app = useApp()
-  const [q, setQ] = useState('')
+  const [q, setQ] = useState(() => new URLSearchParams(window.location.hash.split('?')[1] || window.location.search).get('q') || '')
   const [only, setOnly] = useState('')
   const [params, setParams] = useSearchParams()
   const addId = params.get('add')
@@ -60,9 +63,11 @@ export default function Stock() {
     const c = normCode(code)
     const matched = allRows.filter((r) => (f && r.productId === f.product.id && (f.variant ? r.variantId === f.variant.id : true)) || normCode(r.sku) === c)
     setFound({ code, f, matched })
+    if (getPrintPrefs().scanSound) scanBeep(!!f || matched.length > 0)
     return { ok: true, text: 'Code lu' }
   }
 
+  useWedgeScanner((code) => onScan(code), !scan) // scanner USB / Bluetooth : la fiche du produit s'ouvre
   const totalValue = rows.reduce((s, r) => s + r.value, 0)
   const exportCsv = () => downloadCSV('stock.csv', [['Article', 'SKU', 'Reçu', 'Vendu', 'Retourné', 'Perdu', 'Restant', 'Coût moyen pondéré', 'Valeur'], ...rows.map((r) => [r.label, r.sku, r.received, r.sold, r.returned, r.lost, r.remaining, r.remaining ? round2(r.value / r.remaining) : 0, round2(r.value)])])
 

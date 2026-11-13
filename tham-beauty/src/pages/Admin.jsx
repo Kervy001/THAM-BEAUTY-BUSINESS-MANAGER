@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import Hardware from './Hardware.jsx'
 import { createUserWithEmailAndPassword } from 'firebase/auth'
 import { deleteField, doc, setDoc } from 'firebase/firestore'
 import { db, withSecondaryAuth } from '../lib/firebase.js'
@@ -13,7 +14,7 @@ import { receiptLogo } from '../components/Logo.jsx'
 export default function Admin() {
   const app = useApp()
   const [tab, setTab] = useState(app.can('users.manage') ? 'Utilisateurs' : 'Réglages')
-  const tabs = [...(app.can('users.manage') ? ['Utilisateurs'] : []), ...(app.can('settings.manage') ? ['Rôles'] : []), ...(app.can('settings.manage') ? ['Réglages'] : []), ...(app.isAdmin ? ['Sauvegarde'] : []), 'Historique']
+  const tabs = [...(app.can('users.manage') ? ['Utilisateurs'] : []), ...(app.can('settings.manage') ? ['Rôles'] : []), ...(app.can('settings.manage') ? ['Réglages'] : []), ...(app.isAdmin ? ['Sauvegarde'] : []), 'Matériel', 'Historique']
   return (
     <>
       <PageHeader title="Utilisateurs & réglages" />
@@ -22,6 +23,7 @@ export default function Admin() {
       {tab === 'Rôles' && <RolesTab />}
       {tab === 'Réglages' && <Settings />}
       {tab === 'Sauvegarde' && app.isAdmin && <Backup />}
+      {tab === 'Matériel' && <Hardware embedded />}
       {tab === 'Historique' && <Audit />}
     </>
   )

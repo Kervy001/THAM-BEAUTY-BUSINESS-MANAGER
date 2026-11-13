@@ -166,6 +166,7 @@ export function ProjectDetail() {
     <>
       <div className="mb-3 text-sm"><Link to="/projets" className="text-neutral-500 underline">← Projets</Link></div>
       <PageHeader title={`${p.number} — ${p.name}`}>
+        <Link className="btn-ghost" to={`/etiquettes?proj=${p.id}`}><Icon name="printer" size={16} />Étiquettes du lot</Link>
         {canEdit && <button className="btn-ghost" onClick={() => setModal('edit')}>Modifier</button>}
         {app.isAdmin && p.id !== 'stock-direct' && <button className="btn-ghost !text-blush-600" onClick={() => setModal('delete')}><Icon name="trash" size={16} />Supprimer</button>}
       </PageHeader>

@@ -9,6 +9,8 @@ import Icon from '../components/Icon.jsx'
 import { receiptLogo } from '../components/Logo.jsx'
 import PaymentModal from '../components/PaymentModal.jsx'
 import Scanner from '../components/Scanner.jsx'
+import { useWedgeScanner, wedgeNotify } from '../lib/wedge.js'
+import { RECEIPT_FORMATS, getPrintPrefs, receiptCss } from '../lib/printing.js'
 import { reminderMessage, saleMessage, waLink } from '../lib/whatsapp.js'
 import { lookupCode, stockMatchesFor } from '../lib/codes.js'
 import { allocateForSale, bundleCandidates } from '../lib/bundles.js'
@@ -99,6 +101,13 @@ export function NewSale() {
   const t = saleTotals(draft)
   const showCost = app.can('finance.read')
 
+  // Prix de gros d'une ligne (défini sur la variante du produit), converti dans la devise de la vente
+  function wholesaleOf(l) {
+    const p = app.D.products.find((x) => x.id === l.productId)
+    const v = p?.variants?.find((x) => x.id === l.variantId)
+    const w = Number(v?.wholesalePrice)
+    return w > 0 ? round2(convert(w, v.priceCurrency || 'USD', f.currency, f.rate)) : 0
+  }
   function addLine(val) {
     const o = stockOptions.find((x) => x.value === val)
     if (!o) return
@@ -107,7 +116,7 @@ export function NewSale() {
     setLines((ls) => {
       const same = ls.findIndex((l) => l.itemId === o.it.id)
       if (same >= 0) return ls.map((l, j) => (j === same ? { ...l, qty: String(Math.min(o.remaining, (Number(l.qty) || 0) + 1)) } : l))
-      return [...ls, { id: uid(), projectId: o.p.id, itemId: o.it.id, label: o.it.label, sku: o.it.sku || '', qty: '1', unitPrice: String(price), dType: 'fixed', dValue: '', max: o.remaining, projectNumber: o.p.number }]
+      return [...ls, { id: uid(), projectId: o.p.id, itemId: o.it.id, label: o.it.label, sku: o.it.sku || '', qty: '1', unitPrice: String(price), productId: o.it.productId || '', variantId: o.it.variantId || '', dType: 'fixed', dValue: '', max: o.remaining, projectNumber: o.p.number }]
     })
     setSearch('')
   }
@@ -138,7 +147,7 @@ export function NewSale() {
       const o = opts[bl.itemId]
       if (!a || !o) { missing.push(bl.label); return }
       if (a.qty > o.remaining) missing.push(`${bl.label} (stock ${o.remaining}/${a.qty})`)
-      next.push({ id: uid(), projectId: o.p.id, itemId: o.it.id, label: o.it.label, sku: o.it.sku || '', qty: String(Math.min(a.qty, o.remaining)), unitPrice: String(a.unitPrice), dType: 'fixed', dValue: '', max: o.remaining, projectNumber: o.p.number })
+      next.push({ id: uid(), projectId: o.p.id, itemId: o.it.id, label: o.it.label, sku: o.it.sku || '', qty: String(Math.min(a.qty, o.remaining)), unitPrice: String(a.unitPrice), productId: o.it.productId || '', variantId: o.it.variantId || '', dType: 'fixed', dValue: '', max: o.remaining, projectNumber: o.p.number })
     })
     setLines(next)
     setF((x) => ({ ...x, currency: boite.currency, customerId: boite.customerId || '', customerName: boite.customerName || '', notes: `Boîte ${boite.number}${boite.name ? ' — ' + boite.name : ''}` }))
@@ -162,6 +171,7 @@ export function NewSale() {
     addLine(o.value)
     return { ok: true, text: `✓ ${o.label} — quantité ${q}` }
   }
+  useWedgeScanner(wedgeNotify(app, onScan)) // scanner USB / Bluetooth / 2,4 GHz : l'article s'ajoute tout seul
   const setL = (i, k, v) => setLines(lines.map((l, j) => (j === i ? { ...l, [k]: v } : l)))
   const matches = stockOptions.filter((o) => (o.label + ' ' + o.lot + ' ' + (o.it.sku || '')).toLowerCase().includes(search.toLowerCase()) || (search.length > 3 && stockMatchesFor(search, app.D.products, [o]).length > 0))
 
@@ -204,12 +214,13 @@ export function NewSale() {
       if (boite) { try { await app.save('bundles', boite.id, { status: 'vendu', saleId: id, soldAt: nowIso() }, 'boîte vendue') } catch { /* la vente est enregistrée ; la boîte pourra être marquée à la main */ } }
       app.pushSaleNotification(sale, id, t.netKept) // alerte aux administrateurs
       if (!app.online) app.notify('Vente enregistrée sur l\u2019appareil — elle sera synchronisée au retour d\u2019Internet.', 'warn')
-      nav(`/ventes/${id}`, { replace: true })
+      nav(`/ventes/${id}${getPrintPrefs().autoReceipt ? '?print=recu' : ''}`, { replace: true })
     } catch (ex) { setErr(ex.message) } finally { setBusy(false) }
   }
 
   return (
     <form onSubmit={submit} className="space-y-5">
+      <div className="mb-3 rounded-2xl border border-blush-200 bg-blush-50 px-4 py-2 text-sm text-blush-600"><b>Mode VENTE</b> — chaque scan <b>ajoute</b> l’article à cette vente.</div>
       <PageHeader title="Nouvelle vente" />
       <div className="card grid gap-3 sm:grid-cols-3">
         {app.multiLoc && (
@@ -256,7 +267,10 @@ export function NewSale() {
             <div className="mb-2 flex justify-between text-sm font-semibold"><span>{l.label} <span className="text-xs font-normal text-neutral-500">(lot {l.projectNumber}, dispo {l.max})</span></span><button type="button" className="text-blush-600" onClick={() => setLines(lines.filter((_, j) => j !== i))} aria-label="Retirer"><Icon name="x" size={16} /></button></div>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               <NumberInput label="Quantité" value={l.qty} onChange={(v) => setL(i, 'qty', v)} />
-              <NumberInput label={`Prix unitaire (${f.currency})`} value={l.unitPrice} onChange={(v) => setL(i, 'unitPrice', v)} />
+              <div>
+                <NumberInput label={`Prix unitaire (${f.currency})`} value={l.unitPrice} onChange={(v) => setL(i, 'unitPrice', v)} />
+                {(() => { const w = wholesaleOf(l); return w ? <button type="button" className="mt-1 rounded-lg bg-gold-100 px-2 py-1 text-xs font-medium text-gold-700 ring-1 ring-gold-300" onClick={() => setL(i, 'unitPrice', String(w))}>Prix de gros : {money(w, f.currency)}</button> : null })()}
+              </div>
               <Select label="Réduction / unité" value={l.dType} onChange={(v) => setL(i, 'dType', v)} options={[{ value: 'fixed', label: `Montant (${f.currency})` }, { value: 'percent', label: 'Pourcentage (%)' }]} />
               <NumberInput label="Valeur" value={l.dValue} onChange={(v) => setL(i, 'dValue', v)} />
             </div>
@@ -306,13 +320,25 @@ export function SaleDetail() {
   const [dlg, setDlg] = useState(null) // 'request' | 'delete' | 'approve' | 'refuse' | 'edit'
   const nav = useNavigate()
   const [doc, setDoc] = useState('facture')
-  const [fmt, setFmt] = useState(app.settings?.receipt?.format || 'a4')
+  const [fmt, setFmt] = useState(() => getPrintPrefs().receipt || app.settings?.receipt?.format || 'a4')
+  const [sp] = useSearchParams()
+  const thermal = fmt === 'ticket' || fmt === 'ticket58'
   useEffect(() => {
     const st = document.createElement('style')
-    st.textContent = fmt === 'ticket' ? '@page { size: 80mm auto; margin: 3mm; }' : '@page { size: A4; margin: 12mm; }'
+    st.textContent = receiptCss(fmt, getPrintPrefs())
     document.head.appendChild(st)
     return () => st.remove()
   }, [fmt])
+  // Impression automatique du reçu juste après une vente (réglage « Matériel », propre à cet appareil)
+  const autoPrinted = useRef(false)
+  const hasSale = app.D.sales.some((x) => x.id === id)
+  useEffect(() => {
+    if (sp.get('print') !== 'recu' || !hasSale || autoPrinted.current) return
+    autoPrinted.current = true
+    setDoc('recu')
+    const t = setTimeout(() => window.print(), 600)
+    return () => clearTimeout(t)
+  }, [hasSale]) // eslint-disable-line react-hooks/exhaustive-deps
   const s = app.D.sales.find((x) => x.id === id)
   if (!s) return <Empty>Vente introuvable (chargement…). <Link className="underline" to="/ventes">Retour</Link></Empty>
   const r = saleSummary(s)
@@ -345,10 +371,11 @@ export function SaleDetail() {
       <div className="no-print mb-3 text-sm"><Link to="/ventes" className="text-neutral-500 underline">← Ventes</Link></div>
       <PageHeader title={`Vente ${s.number}`}>
         <select className="input no-print !w-auto !py-2" value={fmt} onChange={(e) => setFmt(e.target.value)} aria-label="Format du document">
-          <option value="a4">Format A4</option><option value="ticket">Ticket 80 mm</option>
+          {RECEIPT_FORMATS.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
         </select>
         <button className="btn-ghost no-print" onClick={() => { setDoc('facture'); setTimeout(() => window.print(), 80) }}><Icon name="printer" size={16} />Facture</button>
         <button className="btn-primary no-print" onClick={() => { setDoc('recu'); setTimeout(() => window.print(), 80) }}><Icon name="printer" size={16} />Reçu</button>
+        <Link className="btn-ghost no-print" to={`/ventes/${s.id}/colis`}><Icon name="package" size={16} />Étiquette colis</Link>
         <a className="btn-gold no-print" target="_blank" rel="noopener noreferrer" aria-label="Envoyer par WhatsApp"
           href={waLink(app.D.customers.find((c) => c.id === s.customerId)?.phone, saleMessage(s, r, app.settings.company, 'facture'), app.settings.whatsappCC)}>WhatsApp</a>
       </PageHeader>
@@ -380,13 +407,13 @@ export function SaleDetail() {
         </div>
       )}
 
-      <div className={'print-area card mb-4 ' + (fmt === 'ticket' ? 'mx-auto max-w-[340px] !p-3 text-[13px] [&_table]:min-w-0 [&_.td]:px-1 [&_.td]:py-1.5 [&_.th]:px-1' : '')}>
-        <div className={'mb-4 border-b border-line pb-4 ' + (fmt === 'ticket' ? 'text-center' : 'flex flex-wrap items-center justify-between gap-4')}>
-          <div className={fmt === 'ticket' ? 'flex flex-col items-center' : 'flex items-center gap-4'}>
-            {rc.showLogo && <img src={receiptLogo(app.settings)} alt="" style={{ width: fmt === 'ticket' ? Math.min(rc.logoWidth, 110) : rc.logoWidth, height: 'auto' }} />}
+      <div className={'print-area card mb-4 ' + (thermal ? (fmt === 'ticket58' ? 'mx-auto max-w-[230px] !p-2 text-[11px] [&_table]:min-w-0 [&_.td]:px-0.5 [&_.td]:py-1 [&_.th]:px-0.5' : 'mx-auto max-w-[340px] !p-3 text-[13px] [&_table]:min-w-0 [&_.td]:px-1 [&_.td]:py-1.5 [&_.th]:px-1') : '')}>
+        <div className={'mb-4 border-b border-line pb-4 ' + (thermal ? 'text-center' : 'flex flex-wrap items-center justify-between gap-4')}>
+          <div className={thermal ? 'flex flex-col items-center' : 'flex items-center gap-4'}>
+            {rc.showLogo && <img src={receiptLogo(app.settings)} alt="" style={{ width: thermal ? Math.min(rc.logoWidth, 110) : rc.logoWidth, height: 'auto' }} />}
             <div><div className="font-display text-xl font-bold">{co.name || 'THAM BEAUTY'}</div><div className="text-xs text-neutral-600">{co.address} {co.phone && `· ${co.phone}`}</div></div>
           </div>
-          <div className={'whitespace-nowrap ' + (fmt === 'ticket' ? 'mt-2 text-sm' : 'text-right text-sm')}><div className="font-display text-lg font-semibold">{doc === 'recu' ? 'Reçu de paiement' : 'Facture'}</div><div>{s.number}</div><div>{fdate(s.date)}</div></div>
+          <div className={'whitespace-nowrap ' + (thermal ? 'mt-2 text-sm' : 'text-right text-sm')}><div className="font-display text-lg font-semibold">{doc === 'recu' ? 'Reçu de paiement' : 'Facture'}</div><div>{s.number}</div><div>{fdate(s.date)}</div></div>
         </div>
         <div className="mb-3 text-sm">Client : <b>{s.customerName}</b> <span className="text-neutral-500">· Vendeur : {sellerOf(s)}</span></div>
         <Table head={['Article', 'Qté', 'Prix unit.', 'Réduction', 'Total']}>
@@ -522,6 +549,7 @@ function EditSaleModal({ s, onClose }) {
     const o = matches.find((x) => { const c = ref.current.find((l) => l.itemId === x.it.id); return c ? (Number(c.qty) || 0) < maxOf(c) : x.remaining > 0 }) || matches[0]
     return add(o)
   }
+  useWedgeScanner(wedgeNotify(app, onScan))
   const found = search.trim() ? options.filter((o) => o.remaining > 0 && (o.label + ' ' + o.lot + ' ' + (o.it.sku || '')).toLowerCase().includes(search.toLowerCase())).slice(0, 6) : []
 
   const draftLines = lines.map((l) => ({ ...l, qty: Number(l.qty) || 0, unitPrice: Number(l.unitPrice) || 0 }))

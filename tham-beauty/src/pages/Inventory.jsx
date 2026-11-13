@@ -5,6 +5,7 @@ import { stockRows } from '../lib/stockRows.js'
 import { lookupCode, normCode } from '../lib/codes.js'
 import { fdt, money, nowIso, today, uid } from '../lib/util.js'
 import Scanner from '../components/Scanner.jsx'
+import { useWedgeScanner, wedgeNotify } from '../lib/wedge.js'
 import Icon from '../components/Icon.jsx'
 import { Badge, Empty, Modal, Notice, PageHeader, Select } from '../components/ui.jsx'
 
@@ -55,6 +56,7 @@ export default function Inventory() {
     return { ok: true, text: `✓ ${r.label} — compté ${n} (attendu ${r.expected})` }
   }
 
+  useWedgeScanner(wedgeNotify(app, onScan)) // scanner USB / Bluetooth : chaque scan compte +1
   const valueOf = (r, d) => (r.expected ? (r.value / r.expected) * d : (r.lots[0]?.unitCost || 0) * d)
 
   async function apply() {
@@ -100,6 +102,7 @@ export default function Inventory() {
 
   return (
     <>
+      <div className="no-print mb-3 rounded-2xl border border-gold-300 bg-gold-100 px-4 py-2 text-sm text-gold-700"><b>Mode INVENTAIRE</b> — chaque scan <b>compte</b> l’article (+1). Aucune vente n’est créée et le stock ne change qu’à la validation de l’inventaire.</div>
       <PageHeader title="Inventaire" subtitle="Comptez vos articles et corrigez le stock en fonction de ce que vous avez réellement.">
         <button className="btn-gold" onClick={() => setScan(true)}><Icon name="scan" size={16} />Scanner</button>
       </PageHeader>
