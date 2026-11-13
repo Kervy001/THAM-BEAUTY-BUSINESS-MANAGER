@@ -158,3 +158,6 @@ main .card:nth-child(4) { animation-delay: .15s; } main .card:nth-child(5) { ani
   /* fenêtres : le voile reste sombre, le panneau suit .bg-white */
   html.dark .shadow-pop { box-shadow: 0 18px 50px -12px rgba(0, 0, 0, .7); }
 }
+
+/* Étiquettes colorées : forcer l'impression des fonds et couleurs */
+.label-wrap, .label-wrap *, .label-edge, .label-edge *, .print-test-zone, .print-test-zone * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
