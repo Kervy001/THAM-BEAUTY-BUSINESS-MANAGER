@@ -23,3 +23,16 @@ export function systemNotify(title, body, tag = 'tb-sale') {
     else new Notification(title, opts)
   } catch { /* silencieux */ }
 }
+
+// Bip de scan : un son court et aigu = code reconnu ; deux sons graves = code inconnu / stock épuisé
+export function scanBeep(ok = true) {
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext
+    const ctx = new AC()
+    const tone = (freq, at, dur) => { const o = ctx.createOscillator(); const g = ctx.createGain(); o.frequency.value = freq; g.gain.value = 0.09; o.connect(g); g.connect(ctx.destination); o.start(ctx.currentTime + at); o.stop(ctx.currentTime + at + dur) }
+    if (ok) tone(1400, 0, 0.09)
+    else { tone(280, 0, 0.14); tone(220, 0.18, 0.2) }
+    setTimeout(() => ctx.close(), 700)
+  } catch { /* silencieux */ }
+  try { navigator.vibrate?.(ok ? 30 : [60, 40, 60]) } catch { /* silencieux */ }
+}

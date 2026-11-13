@@ -185,6 +185,18 @@ export function lookupCode(raw, products) {
   return null
 }
 
+// Codes (code-barres ou SKU) utilisés par plus d'un produit / variante : { code, noms[] }
+export function duplicateCodes(products, { exceptProductId = '' } = {}) {
+  const seen = {}
+  const add = (code, label, pid) => { const c = normCode(code); if (c) (seen[c] ||= { code: String(code).trim(), names: [], pids: new Set() }, seen[c].names.push(label), seen[c].pids.add(pid)) }
+  for (const p of products || []) {
+    if (p.active === false) continue
+    if (p.variants?.length) p.variants.forEach((v) => { add(v.barcode, `${p.name} — ${v.label}`, p.id); if (normCode(v.sku) !== normCode(v.barcode)) add(v.sku, `${p.name} — ${v.label}`, p.id) })
+    else { add(p.barcode, p.name, p.id); if (normCode(p.sku) !== normCode(p.barcode)) add(p.sku, p.name, p.id) }
+  }
+  return Object.values(seen).filter((x) => x.names.length > 1).filter((x) => !exceptProductId || x.pids.has(exceptProductId)).map((x) => ({ code: x.code, names: x.names }))
+}
+
 // Articles de stock (liste de { p, it, ... }) correspondant à un code
 export function stockMatchesFor(raw, products, options) {
   const found = lookupCode(raw, products)
