@@ -2,62 +2,120 @@
 // (Niimbot, Phomemo, Brother iPrint…) au lieu de la fenêtre d'impression. Aucune bibliothèque externe.
 import { code128Widths, qrMatrix } from './codes.js'
 import { money } from './util.js'
-import { sheetGrid } from './printing.js'
+import { sheetGrid, BUILTIN_TEMPLATES } from './printing.js'
 
 const PX_PER_MM = 12 // ≈ 305 dpi
 const esc = (t) => String(t ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
 const fit = (t, maxChars) => { const s = String(t ?? ''); return s.length > maxChars ? s.slice(0, Math.max(1, maxChars - 1)) + '…' : s }
 
-// L'étiquette dessinée en SVG (unités = 1/10 de mm), même mise en page que l'aperçu / l'impression
+// L'étiquette dessinée en SVG (unités = 1/10 de mm). Un seul dessin sert pour l'aperçu, l'impression et l'export,
+// il suit le modèle choisi (o.tpl : couleurs, cadre, bandeau, éléments dans l'ordre, tailles, alignements).
+const BASE = { shop: 0.7, name: 1, variant: 0.88, price: 0.88, code: 0.78, extra: 0.7, date: 0.7 }
+const ANCHOR = { left: 'start', center: 'middle', right: 'end' }
+const FONT = 'Arial, Helvetica, sans-serif'
 export function labelSvg(l, show, w, h, o = {}) {
+  const tpl = o.tpl || BUILTIN_TEMPLATES[0]
+  const th = tpl.theme || BUILTIN_TEMPLATES[0].theme
   const W = w * 10, H = h * 10
   const small = h < 24
-  const fs = Math.max(6, Math.min(11, h * 0.27)) * (o.fontScale || 1) * 3.528 // pt → 1/10 mm
-  const pad = (o.pad ?? 1.2) * 10
   const rich = !small && h >= 28
-  const shopH = rich && o.shop ? fs * 0.7 * 1.2 : 0
-  const extraH = rich && (o.extra || o.date) ? fs * 0.7 * 1.3 : 0
-  const qrOn = !small && show.qr && w >= 45
-  const qrSize = Math.min(h * 0.5, w * 0.3, 22) * 10
-  const bh = Math.max(7, h * (small ? 0.44 : 0.38)) * 10
-  const name = fit(l.name, Math.floor((W - pad * 2) / (fs * 0.55)))
-  const price = show.price && Number(l.price) > 0 ? money(l.price, l.cur) : ''
-  const sub = fit(l.label, Math.floor((W - pad * 2 - price.length * fs * 0.5) / (fs * 0.88 * 0.52)))
-  const codeLineH = small || o.codeText === false ? 0 : fs * 0.78 * 1.3
-  const top = pad + shopH + fs * 1.1 + fs * 0.88 * 1.25
-  const availH = H - pad - codeLineH - extraH - top
-  let body = ''
-  // code-barres
+  const baseFs = Math.max(6, Math.min(11, h * 0.27)) * (o.fontScale || 1) * 3.528 // pt → 1/10 mm
+  const pad = (o.pad ?? 1.2) * 10 + (th.frame ? 6 : 0)
+  const availW = W - pad * 2
+  const price = show.price !== false && Number(l.price) > 0 ? money(l.price, l.cur) : ''
   const widths = code128Widths(l.code)
-  if (show.barcode && widths.length) {
-    const quiet = 10, total = widths.reduce((a, b) => a + b, 0) + quiet * 2
-    const bw = W - pad * 2 - (qrOn ? qrSize + 15 : 0)
-    const hh = Math.min(bh, availH)
-    const y0 = top + (availH - hh) / 2
-    const k = bw / total
-    let x = quiet
-    widths.forEach((wd, i) => { if (i % 2 === 0) body += `<rect x="${(pad + x * k).toFixed(2)}" y="${y0.toFixed(2)}" width="${(wd * k).toFixed(2)}" height="${hh.toFixed(2)}" fill="#000"/>`; x += wd })
+  const qrOn = !!tpl.qr && show.qr !== false && !small && w >= 45
+  // éléments visibles, dans l'ordre du modèle
+  const vis = []
+  for (const e of tpl.els || []) {
+    if (!e.on) continue
+    let text = ''
+    if (e.k === 'shop') { if (rich && o.shopText) text = String(o.shopText).toUpperCase() }
+    else if (e.k === 'name') text = l.name
+    else if (e.k === 'variant') text = l.label
+    else if (e.k === 'price') text = price
+    else if (e.k === 'code') { if (!small) text = l.code }
+    else if (e.k === 'extra') { if (rich) text = o.extra }
+    else if (e.k === 'date') { if (rich) text = new Date().toLocaleDateString('fr-FR') }
+    else if (e.k === 'barcode') { if (show.barcode !== false && widths.length) vis.push({ ...e, bar: true }); continue }
+    if (text) vis.push({ ...e, text: String(text) })
   }
-  // QR
-  if (qrOn) {
-    let m = null
-    try { m = qrMatrix(l.code) } catch { m = null }
-    if (m) {
-      const n = m.length, q = 4, cell = qrSize / (n + q * 2)
-      const x0 = W - pad - qrSize, y0 = top + (availH - qrSize) / 2
-      m.forEach((row, y) => row.forEach((c, x) => { if (c) body += `<rect x="${(x0 + (x + q) * cell).toFixed(2)}" y="${(y0 + (y + q) * cell).toFixed(2)}" width="${(cell + 0.3).toFixed(2)}" height="${(cell + 0.3).toFixed(2)}" fill="#000"/>` }))
+  // lignes : variante + prix, ligne libre + date côte à côte quand ils se suivent
+  const rows = []
+  for (let i = 0; i < vis.length; i++) {
+    const e = vis[i], n = vis[i + 1]
+    if (!e.bar && n && !n.bar && ((e.k === 'variant' && n.k === 'price') || (e.k === 'extra' && n.k === 'date')) && e.align !== 'center' && n.align !== 'center') { rows.push({ pair: [e, n] }); i++ } else rows.push({ one: e })
+  }
+  const fsOf = (e) => baseFs * (BASE[e.k] || 1) * (Number(e.size) || 100) / 100
+  const cw = (e) => (e.bold ? 0.6 : 0.55) + (e.k === 'shop' || e.k === 'code' ? 0.12 : 0)
+  // taille réelle d'un texte : réduite pour tenir dans la largeur, puis tronquée si besoin
+  const fitText = (e, maxW) => {
+    const f0 = fsOf(e)
+    const floor = f0 * ((Number(e.size) || 100) > 200 ? 0.3 : 0.6)
+    let fs = Math.min(f0, maxW / (e.text.length * cw(e)))
+    fs = Math.max(floor, fs)
+    const maxChars = Math.floor(maxW / (fs * cw(e)))
+    return { fs, text: e.text.length > maxChars ? e.text.slice(0, Math.max(1, maxChars - 1)) + '…' : e.text }
+  }
+  const lineH = (fs) => fs * 1.25
+  const prepared = rows.map((r) => {
+    if (r.one && r.one.bar) return { bar: r.one }
+    if (r.one) { const f = fitText(r.one, availW); return { items: [{ e: r.one, ...f }], h: lineH(f.fs) } }
+    const [a, b] = r.pair
+    const fb = fitText(b, availW * 0.5)
+    const fa = fitText(a, availW - fb.text.length * fb.fs * cw(b) - pad * 0.5)
+    return { items: [{ e: a, ...fa }, { e: b, ...fb }], h: lineH(Math.max(fa.fs, fb.fs)) }
+  })
+  const padY = pad
+  const availH = H - padY * 2
+  const fixed = prepared.reduce((s2, r) => s2 + (r.bar ? 0 : r.h), 0)
+  const hasBar = prepared.some((r) => r.bar)
+  const slot = Math.max(0, availH - fixed)
+  const nGaps = Math.max(0, prepared.length - 1)
+  const gap = hasBar ? 0 : Math.min(slot / (nGaps + 1), baseFs * 0.45)
+  const used = fixed + gap * nGaps
+  let y = padY + (hasBar ? 0 : Math.max(0, (availH - used) / 2))
+  const col = th.fg || '#000'
+  let svg = `<rect x="${th.frame ? 2 : 0}" y="${th.frame ? 2 : 0}" width="${th.frame ? W - 4 : W}" height="${th.frame ? H - 4 : H}" rx="${th.frame ? (th.radius || 1.5) * 10 : 0}" fill="${th.bg || '#fff'}"${th.frame ? ` stroke="${th.accent || col}" stroke-width="4"` : ''}/>`
+  const colorOf = (e, inBand) => inBand ? (th.bg || '#fff') : e.k === 'price' ? (th.accent || col) : col
+  const txt = (e, text, fs, x, anchor, yBase, inBand) => `<text x="${x.toFixed(1)}" y="${yBase.toFixed(1)}" text-anchor="${anchor}" font-family="${FONT}" font-size="${fs.toFixed(1)}"${e.bold ? ' font-weight="700"' : ''}${e.k === 'shop' || e.k === 'code' ? ' letter-spacing="1"' : ''} fill="${colorOf(e, inBand)}"${e.k === 'extra' || e.k === 'date' ? ' fill-opacity="0.85"' : ''}>${esc(text)}</text>`
+  prepared.forEach((r, i) => {
+    if (r.bar) {
+      const e = r.bar
+      const bh0 = Math.max(70, h * (small ? 0.44 : 0.38) * 10) * (Number(e.size) || 100) / 100
+      const hh = Math.min(bh0, slot), y0 = y + (slot - hh) / 2
+      const qrSize = Math.min(hh, w * 0.3 * 10, 220)
+      const bw = availW - (qrOn ? qrSize + 15 : 0)
+      const quiet = 10, total = widths.reduce((s2, v) => s2 + v, 0) + quiet * 2, k = bw / total
+      if (hh > 5) {
+        svg += `<rect x="${pad.toFixed(1)}" y="${y0.toFixed(1)}" width="${bw.toFixed(1)}" height="${hh.toFixed(1)}" fill="#fff"/>`
+        let x = quiet
+        widths.forEach((wd, j) => { if (j % 2 === 0) svg += `<rect x="${(pad + x * k).toFixed(2)}" y="${y0.toFixed(2)}" width="${(wd * k).toFixed(2)}" height="${hh.toFixed(2)}" fill="#000"/>`; x += wd })
+        if (qrOn) {
+          let m = null
+          try { m = qrMatrix(l.code) } catch { m = null }
+          if (m) {
+            const n = m.length, q = 4, cell = qrSize / (n + q * 2), x0 = W - pad - qrSize, yq = y + (slot - qrSize) / 2
+            svg += `<rect x="${x0.toFixed(1)}" y="${yq.toFixed(1)}" width="${qrSize.toFixed(1)}" height="${qrSize.toFixed(1)}" fill="#fff"/>`
+            m.forEach((row, yy) => row.forEach((c, xx) => { if (c) svg += `<rect x="${(x0 + (xx + q) * cell).toFixed(2)}" y="${(yq + (yy + q) * cell).toFixed(2)}" width="${(cell + 0.3).toFixed(2)}" height="${(cell + 0.3).toFixed(2)}" fill="#000"/>` }))
+          }
+        }
+      }
+      y += slot
+      return
     }
-  }
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><rect width="${W}" height="${H}" fill="#fff"/>`
-    + (shopH ? `<text x="${pad}" y="${pad + fs * 0.7}" font-family="Arial, Helvetica, sans-serif" font-size="${(fs * 0.7).toFixed(1)}" letter-spacing="1" fill="#333">${esc(fit(String(o.shop).toUpperCase(), Math.floor((W - pad * 2) / (fs * 0.7 * 0.62))))}</text>` : '')
-    + `<text x="${pad}" y="${pad + shopH + fs}" font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="${fs.toFixed(1)}" fill="#000">${esc(name)}</text>`
-    + `<text x="${pad}" y="${pad + shopH + fs * 1.1 + fs * 0.88}" font-family="Arial, Helvetica, sans-serif" font-size="${(fs * 0.88).toFixed(1)}" fill="#000">${esc(sub)}</text>`
-    + (price ? `<text x="${W - pad}" y="${pad + shopH + fs * 1.1 + fs * 0.88}" text-anchor="end" font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="${(fs * 0.88).toFixed(1)}" fill="#000">${esc(price)}</text>` : '')
-    + body
-    + (small || o.codeText === false ? '' : `<text x="${W / 2}" y="${H - pad * 0.7 - extraH}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${(fs * 0.78).toFixed(1)}" letter-spacing="1" fill="#000">${esc(l.code)}</text>`)
-    + (extraH ? `<text x="${pad}" y="${H - pad * 0.6}" font-family="Arial, Helvetica, sans-serif" font-size="${(fs * 0.7).toFixed(1)}" fill="#222">${esc(fit(o.extra || '', Math.floor((W - pad * 2 - (o.date ? 200 : 0)) / (fs * 0.7 * 0.55))))}</text>` : '')
-    + (extraH && o.date ? `<text x="${W - pad}" y="${H - pad * 0.6}" text-anchor="end" font-family="Arial, Helvetica, sans-serif" font-size="${(fs * 0.7).toFixed(1)}" fill="#222">${esc(new Date().toLocaleDateString('fr-FR'))}</text>` : '')
-    + '</svg>'
+    const band = !!th.band && i === 0 && r.items[0].e.k === 'shop'
+    if (band) svg = svg.replace(/^(<rect[^>]*\/>)/, (m0) => m0 + `<rect x="${th.frame ? 2 : 0}" y="${th.frame ? 2 : 0}" width="${th.frame ? W - 4 : W}" height="${(y + r.h + padY * 0.35 - (th.frame ? 2 : 0)).toFixed(1)}" fill="${th.accent || col}"/>`)
+    r.items.forEach((it, j) => {
+      const e = it.e
+      const al = r.items.length === 2 ? (j === 0 ? 'left' : 'right') : e.align
+      const x = al === 'center' ? W / 2 : al === 'right' ? W - pad : pad
+      svg += txt(e, it.text, it.fs, x, ANCHOR[al] || 'start', y + it.fs * 1.0 + (r.h - lineH(it.fs)) / 2, band)
+    })
+    y += r.h + gap
+  })
+  const dims = o.inline ? 'width="100%" height="100%" style="display:block"' : `width="${W}" height="${H}"`
+  return `<svg xmlns="http://www.w3.org/2000/svg" ${dims} viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">${svg}</svg>`
 }
 
 export function svgToCanvas(svg, wMm, hMm) {

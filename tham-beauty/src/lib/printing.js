@@ -49,7 +49,7 @@ const KEY = 'tb-print'
 const DEFAULTS = {
   // étiquettes
   label: 'l50x30', paper: 'gap', custom: { w: 50, h: 30 }, sheetPreset: 'p56', sheet: { w: 56, h: 34, cols: 3, rows: 8, top: 8, left: 8, gapX: 3, gapY: 3 },
-  rotate: false, offX: 0, offY: 0, scale: 100, pad: 1.2, fontScale: 100, contour: false,
+  tplId: '', rotate: false, offX: 0, offY: 0, scale: 100, pad: 1.2, fontScale: 100, contour: false,
   // reçus
   receipt: '', receiptW: 72, receiptMargin: 2, receiptFont: 100, autoReceipt: false,
   // scanner
@@ -85,12 +85,64 @@ export function receiptCss(id, prefs = getPrintPrefs()) {
   return `@page { size: ${receiptWidth(id, prefs)}mm auto; margin: ${num(prefs.receiptMargin, 2, 0, 15)}mm; }`
 }
 
-// Options de dessin d'une étiquette = réglages de l'appareil + modèle de l'entreprise
+// ---------------------------------------------------------------------------------------------
+// Modèles d'étiquettes. Un modèle = thème (couleurs, cadre, bandeau) + liste ordonnée d'éléments.
+// Chaque élément : { k, on, size (% de la taille de base), align (left|center|right), bold }
+// ---------------------------------------------------------------------------------------------
+export const EL_LABELS = { shop: 'Nom de la boutique', name: 'Nom du produit', variant: 'Variante / longueur', price: 'Prix', barcode: 'Code-barres', code: 'Code (chiffres)', extra: 'Ligne libre', date: 'Date d’impression' }
+export const EL_KEYS = Object.keys(EL_LABELS)
+const EL_DEF = { shop: [false, 100, 'left', false], name: [true, 100, 'left', true], variant: [true, 100, 'left', false], price: [true, 100, 'right', true], barcode: [true, 100, 'center', false], code: [true, 100, 'center', false], extra: [false, 100, 'left', false], date: [false, 100, 'right', false] }
+// els : { k: [on, size, align, bold] } dans l'ordre voulu ; les éléments non cités sont ajoutés à la fin, désactivés
+function mkEls(spec) {
+  const out = Object.entries(spec).map(([k, v]) => { const d = EL_DEF[k]; return { k, on: v[0] ?? d[0], size: v[1] ?? d[1], align: v[2] ?? d[2], bold: v[3] ?? d[3] } })
+  EL_KEYS.forEach((k) => { if (!out.some((e) => e.k === k)) { const d = EL_DEF[k]; out.push({ k, on: false, size: d[1], align: d[2], bold: d[3] }) } })
+  return out
+}
+const T = (bg, fg, accent, frame, band, radius = 1.5) => ({ bg, fg, accent, frame, band, radius })
+const C = 'center'
+export const BUILTIN_TEMPLATES = [
+  { id: 'standard', name: 'Standard', desc: 'Nom, variante, prix, code-barres (+ QR sur les grandes étiquettes).', theme: T('#ffffff', '#000000', '#000000', false, false), qr: true,
+    els: mkEls({ shop: [false], name: [], variant: [], price: [], barcode: [], code: [], extra: [], date: [] }) },
+  { id: 'elegant', name: 'Élégant doré', desc: 'Cadre doré, bandeau avec le nom de la boutique, texte centré.', theme: T('#fff9f7', '#2b1a24', '#b8862b', true, true, 2), qr: false,
+    els: mkEls({ shop: [true, 115, C, true], name: [true, 115, C, true], variant: [true, 100, C], price: [true, 130, C, true], barcode: [], code: [true, 100, C], extra: [true, 100, C] }) },
+  { id: 'rose', name: 'Rose glamour', desc: 'Fond rose pâle, bandeau rose, prix en évidence.', theme: T('#fde7ee', '#5b1330', '#d6336c', true, true, 2.5), qr: false,
+    els: mkEls({ shop: [true, 110, C, true], name: [true, 115, C, true], variant: [true, 100, C], price: [true, 140, C, true], barcode: [], code: [true, 100, C], extra: [true, 100, C] }) },
+  { id: 'noir', name: 'Noir chic', desc: 'Fond noir, texte blanc et prix doré (code-barres sur fond blanc).', theme: T('#111111', '#ffffff', '#d4af37', true, false, 2), qr: false,
+    els: mkEls({ shop: [true, 105, C, true], name: [true, 115, C, true], variant: [true, 100, C], price: [true, 135, C, true], barcode: [], code: [true, 100, C], extra: [true, 100, C] }) },
+  { id: 'prix', name: 'Gros prix', desc: 'Le prix en très grand : idéal pour les étagères et la vitrine.', theme: T('#ffffff', '#000000', '#000000', true, false, 1.5), qr: false,
+    els: mkEls({ name: [true, 100, C, true], variant: [true, 95, C], price: [true, 270, C, true], barcode: [true, 80, C], code: [false] }) },
+  { id: 'minimal', name: 'Minimal', desc: 'Seulement le nom et le code-barres.', theme: T('#ffffff', '#000000', '#000000', false, false), qr: false,
+    els: mkEls({ name: [true, 100, C, true], barcode: [], code: [true, 100, C], variant: [false], price: [false] }) },
+  { id: 'longueur-rouge', name: 'Longueur — rouge', desc: 'Grande longueur sur fond rouge pour reconnaître vite (couleur ; en noir et blanc sur imprimante thermique).', theme: T('#d90429', '#ffffff', '#ffffff', false, false, 1.5), qr: false,
+    els: mkEls({ name: [true, 70, C, true], variant: [true, 430, C, true], price: [false], barcode: [false], code: [false] }) },
+  { id: 'longueur-noir', name: 'Longueur — noir', desc: 'Grande longueur sur fond noir (très lisible sur imprimante thermique).', theme: T('#000000', '#ffffff', '#ffffff', false, false, 1.5), qr: false,
+    els: mkEls({ name: [true, 70, C, true], variant: [true, 430, C, true], price: [false], barcode: [false], code: [false] }) }
+]
 export const DEFAULT_TPL = { shop: false, shopText: '', date: false, extra: '', codeText: true }
 export const tplOf = (settings) => ({ ...DEFAULT_TPL, ...(settings?.labelTpl || {}) })
+const cloneTpl = (t) => ({ ...t, theme: { ...t.theme }, els: t.els.map((e) => ({ ...e })) })
+// Le modèle « Standard » reste commandé par les anciens réglages (boutique / date / ligne libre / texte du code)
+function standardWith(t) {
+  const s = cloneTpl(BUILTIN_TEMPLATES[0])
+  const set = (k, patch) => { const e = s.els.find((x) => x.k === k); if (e) Object.assign(e, patch) }
+  set('shop', { on: !!t.shop }); set('date', { on: !!t.date }); set('extra', { on: !!t.extra }); set('code', { on: t.codeText !== false })
+  return s
+}
+export function templatesOf(settings) {
+  const t = tplOf(settings)
+  const custom = (Array.isArray(settings?.labelTemplates) ? settings.labelTemplates : []).filter((x) => x && x.id && Array.isArray(x.els)).map((x) => ({ ...x, builtin: false }))
+  return [{ ...standardWith(t), builtin: true }, ...BUILTIN_TEMPLATES.slice(1).map((x) => ({ ...cloneTpl(x), builtin: true })), ...custom]
+}
+export function resolveTemplate(settings, prefs = getPrintPrefs()) {
+  const all = templatesOf(settings)
+  return all.find((x) => x.id === prefs.tplId) || all.find((x) => x.id === settings?.labelTplDefault) || all[0]
+}
+export function newCustomTemplate(from, name) {
+  return { ...cloneTpl(from), id: 'tpl_' + Math.random().toString(36).slice(2, 9), name, builtin: false, desc: '' }
+}
 export function labelOpts(settings, prefs = getPrintPrefs()) {
   const t = tplOf(settings)
-  return { pad: num(prefs.pad, 1.2, 0, 6), fontScale: num(prefs.fontScale, 100, 60, 160) / 100, shop: t.shop ? (t.shopText || settings?.company?.name || 'THAM BEAUTY') : '', date: t.date, extra: t.extra || '', codeText: t.codeText !== false, contour: !!prefs.contour }
+  return { pad: num(prefs.pad, 1.2, 0, 6), fontScale: num(prefs.fontScale, 100, 60, 160) / 100, contour: !!prefs.contour, shopText: t.shopText || settings?.company?.name || 'THAM BEAUTY', extra: t.extra || '', tpl: resolveTemplate(settings, prefs) }
 }
 
 // Règle @page : une étiquette = une page (imprimante thermique), ou feuille A4 (marges gérées par la grille)
