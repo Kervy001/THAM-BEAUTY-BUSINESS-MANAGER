@@ -1,37 +1,11 @@
-import { money } from '../lib/util.js'
 import { sheetGrid } from '../lib/printing.js'
-import { Barcode, QR } from './CodeImages.jsx'
+import { labelSvg } from '../lib/labelExport.js'
 
-// Une étiquette : s'adapte à la taille (petites étiquettes = nom + code-barres ; grandes = + QR, code, boutique, date, ligne libre)
-export function LabelCell({ l, show, w, h, o = {}, edge }) {
-  const small = h < 24
-  const k = o.fontScale || 1
-  const fs = Math.max(6, Math.min(11, h * 0.27)) * k
-  const bh = Math.max(7, h * (small ? 0.44 : 0.38)) * (k > 1.2 ? 0.85 : 1)
-  const withQr = !small && show.qr && w >= 45
-  const qrSize = Math.min(h * 0.5, w * 0.3, 22)
-  const rich = !small && h >= 28
-  const today = new Date().toLocaleDateString('fr-FR')
+// Une étiquette : même dessin que l'export (labelSvg), selon le modèle choisi
+export function LabelCell({ l, show, w, h, o = {}, edge, fluid }) {
+  const svg = labelSvg(l, show, w, h, { ...o, inline: true })
   return (
-    <div className={edge ? 'label-edge' + (o.contour ? ' contour' : '') : ''} style={{ width: `${w}mm`, height: `${h}mm`, borderRadius: '1.5mm', padding: `${o.pad ?? 1.2}mm`, boxSizing: 'border-box', background: '#fff', color: '#000', display: 'flex', flexDirection: 'column', overflow: 'hidden', fontFamily: 'Arial, sans-serif', flexShrink: 0 }}>
-      {rich && o.shop && <div style={{ fontSize: `${fs * 0.7}pt`, letterSpacing: '0.6pt', textTransform: 'uppercase', color: '#333', lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{o.shop}</div>}
-      <div style={{ fontSize: `${fs}pt`, fontWeight: 700, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.name}</div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: `${fs * 0.88}pt`, lineHeight: 1.2 }}>
-        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.label}</span>
-        {show.price && Number(l.price) > 0 && <b style={{ whiteSpace: 'nowrap' }}>{money(l.price, l.cur)}</b>}
-      </div>
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '1.5mm', minHeight: 0, marginTop: '0.4mm' }}>
-        {show.barcode && <div style={{ flex: 1, minWidth: 0 }}><Barcode value={l.code} height={`${bh}mm`} /></div>}
-        {withQr && <QR value={l.code} size={`${qrSize}mm`} />}
-      </div>
-      {!small && o.codeText !== false && <div style={{ fontSize: `${fs * 0.78}pt`, textAlign: 'center', letterSpacing: '0.5pt', lineHeight: 1.15 }}>{l.code}</div>}
-      {rich && (o.extra || o.date) && (
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '2mm', fontSize: `${fs * 0.7}pt`, lineHeight: 1.15, color: '#222' }}>
-          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{o.extra}</span>
-          {o.date && <span style={{ whiteSpace: 'nowrap' }}>{today}</span>}
-        </div>
-      )}
-    </div>
+    <div className={edge ? 'label-edge' + (o.contour ? ' contour' : '') : ''} style={fluid ? { width: '100%', aspectRatio: `${w} / ${h}`, borderRadius: '1.5mm', overflow: 'hidden' } : { width: `${w}mm`, height: `${h}mm`, borderRadius: '1.5mm', overflow: 'hidden', flexShrink: 0 }} dangerouslySetInnerHTML={{ __html: svg }} />
   )
 }
 
