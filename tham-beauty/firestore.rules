@@ -35,7 +35,8 @@ service cloud.firestore {
     match /settings/{id} {
       allow read: if signedIn();
       allow create: if (signedIn() && notInitialized()) || can('settings.manage');
-      allow update: if can('settings.manage') || (can('rates.write') && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rate', 'rateUpdatedAt', 'updatedAt', 'updatedBy']));
+      // La liste des associés (partners) ne change que par l'administrateur principal
+      allow update: if (can('settings.manage') && (request.resource.data.get('partners', null) == resource.data.get('partners', null) || isAdmin())) || (can('rates.write') && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rate', 'rateUpdatedAt', 'updatedAt', 'updatedBy']));
       allow delete: if false;
     }
     // Alertes « nouvelle vente » : tout utilisateur actif peut en créer, seul l'administrateur les lit
