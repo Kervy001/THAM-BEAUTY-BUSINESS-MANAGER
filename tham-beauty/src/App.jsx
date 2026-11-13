@@ -5,6 +5,7 @@ import { useApp } from './lib/store.jsx'
 import { roleLabel } from './lib/perms.js'
 import { useTheme } from './lib/theme.js'
 import NotificationBell from './components/Notifications.jsx'
+import GlobalSearch from './components/GlobalSearch.jsx'
 import { LockScreen, PinRequired } from './components/LockScreen.jsx'
 import { useAutoLock } from './lib/useAutoLock.js'
 import Logo from './components/Logo.jsx'
@@ -34,6 +35,8 @@ const loaders = {
   Bundles: () => import('./pages/Bundles.jsx'),
   Fund: () => import('./pages/Fund.jsx'),
   Journal: () => import('./pages/Journal.jsx'),
+  Hardware: () => import('./pages/Hardware.jsx'),
+  ParcelLabel: () => import('./pages/ParcelLabel.jsx'),
   Losses: () => import('./pages/Losses.jsx'),
   Partners: () => import('./pages/Partners.jsx'),
   Associates: () => import('./pages/Associates.jsx'),
@@ -65,6 +68,8 @@ const Inventory = page('Inventory')
 const Messages = page('Messages')
 const Fund = page('Fund')
 const Journal = page('Journal')
+const Hardware = page('Hardware')
+const ParcelLabel = page('ParcelLabel')
 const Losses = page('Losses')
 const Associates = page('Associates')
 const Treasury = page('Treasury')
@@ -104,6 +109,7 @@ const GROUPS = [
     { to: '/fournisseurs', label: 'Fournisseurs', icon: 'truck', perm: ['suppliers.write', 'projects.write', 'payments.write', 'finance.read'] },
     { to: '/inventaire', label: 'Inventaire', icon: 'layers', perm: ['stock.write'] },
     { to: '/pertes', label: 'Pertes de stock', icon: 'trash', perm: ['stock.write'] },
+    { to: '/materiel', label: 'Scanner & imprimante', icon: 'printer' },
     { to: '/produits', label: 'Produits', icon: 'tag', perm: ['products.write', 'stock.read', 'sales.write', 'projects.write'] },
     { to: '/depenses', label: 'Dépenses', icon: 'wallet', perm: ['expenses.write', 'finance.read'] }
   ] },
@@ -256,10 +262,12 @@ export default function App() {
           <span className="font-display text-base font-bold">THAM BEAUTY</span>
           <div className="ml-auto flex items-center gap-1">
             {app.hasPending && <span className="flex items-center gap-1 rounded-full bg-gold-100 px-2.5 py-1 text-[11px] font-semibold text-gold-700"><Icon name="cloud" size={12} />en attente</span>}
+            <GlobalSearch className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-neutral-700 hover:bg-black/5 active:bg-black/10" />
             <NotificationBell className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-neutral-700 hover:bg-black/5 active:bg-black/10" />
             <button type="button" className="-mr-1.5 grid h-10 w-10 shrink-0 place-items-center rounded-xl text-neutral-700 hover:bg-black/5 active:bg-black/10" onClick={theme.toggle} aria-label={theme.dark ? 'Mode clair' : 'Mode sombre'}><Icon name={theme.dark ? 'sun' : 'moon'} size={21} /></button>
           </div>
         </header>
+        <GlobalSearch className="no-print fixed right-4 top-3 z-20 hidden h-10 w-10 place-items-center rounded-xl bg-white text-neutral-700 shadow-card ring-1 ring-line hover:bg-blush-50 lg:grid" />
         <main key={loc.pathname} className="pop-in mx-auto max-w-6xl px-4 pb-28 pt-5 sm:px-6 lg:pb-10 lg:pt-8">
           <ErrorBoundary resetKey={loc.pathname}>
           <Suspense fallback={<PageLoading />}>
@@ -283,6 +291,8 @@ export default function App() {
             <Route path="/creances" element={<Receivables />} />
             <Route path="/caisse" element={<Cash />} />
             <Route path="/inventaire" element={<Inventory />} />
+            <Route path="/materiel" element={<Hardware />} />
+            <Route path="/ventes/:id/colis" element={<ParcelLabel />} />
             <Route path="/pertes" element={app.can('stock.write') ? <Losses /> : <Navigate to="/" />} />
             <Route path="/journal" element={app.can('finance.read') ? <Journal /> : <Navigate to="/" />} />
             <Route path="/tresorerie" element={<Treasury />} />

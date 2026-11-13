@@ -68,6 +68,17 @@ main .card:nth-child(4) { animation-delay: .15s; } main .card:nth-child(5) { ani
   .no-print { display: none !important; }
   .print-area img { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+/* Étiquettes : le contour pointillé n'est visible qu'à l'écran (sauf option « tracer le contour ») ; pas d'espace entre deux étiquettes à l'impression */
+.label-edge { border: 0.2mm dashed #bbb; }
+.label-wrap { margin-bottom: 3mm; }
+@media print { .label-edge { border-color: transparent; } .label-edge.contour { border-color: #888; } .label-wrap { margin-bottom: 0; } }
+/* Page « Matériel » : la zone de test n'apparaît pas à l'écran, et à l'impression seul le type de test demandé sort */
+.print-test-zone { display: none; }
+@media print {
+  .print-test-zone { display: block; }
+  body:not(.print-test-label) .print-test-zone .only-label { display: none; }
+  body:not(.print-test-receipt) .print-test-zone .only-receipt { display: none; }
+}
 
 .no-scrollbar { scrollbar-width: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
