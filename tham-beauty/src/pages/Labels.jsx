@@ -6,7 +6,7 @@ import { codeOf, duplicateCodes, makeCode } from '../lib/codes.js'
 import { LabelPages } from '../components/LabelSheet.jsx'
 import Icon from '../components/Icon.jsx'
 import { exportLabels } from '../lib/labelExport.js'
-import { LABEL_FORMATS, getPrintPrefs, setPrintPrefs, labelSize, labelPageCss, labelOpts } from '../lib/printing.js'
+import { LABEL_FORMATS, getPrintPrefs, setPrintPrefs, labelSize, labelPageCss, labelOpts, templatesOf } from '../lib/printing.js'
 import { Empty, Notice, PageHeader } from '../components/ui.jsx'
 
 // Étiquettes imprimables : code-barres (Code 128) + code QR + nom + prix, prêtes à coller sur les produits.
@@ -107,6 +107,9 @@ export default function Labels() {
 
       <div className="no-print space-y-3">
         <div className="card space-y-3">
+          <label className="block"><span className="label">Modèle d’étiquette (style)</span>
+            <select className="input" value={O.tpl.id} onChange={(e) => setPrefs(setPrintPrefs({ tplId: e.target.value }))}>{templatesOf(app.settings).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select>
+            <span className="mt-1 block text-[11px] text-neutral-500">Créer ou modifier des modèles : Paramètres → Matériel.</span></label>
           <div className="grid gap-3 sm:grid-cols-[2fr_1fr_1fr]">
             <label className="block"><span className="label">Format d’étiquette (gardé par défaut sur cet appareil)</span>
               <select className="input" value={prefs.label} onChange={(e) => chooseFormat(e.target.value)}>{LABEL_FORMATS.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}</select></label>

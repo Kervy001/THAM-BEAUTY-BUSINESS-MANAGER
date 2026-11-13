@@ -4,8 +4,9 @@ import { useApp } from '../lib/store.jsx'
 import { lookupCode } from '../lib/codes.js'
 import { useWedgeScanner } from '../lib/wedge.js'
 import { scanBeep } from '../lib/alerts.js'
-import { LABEL_FORMATS, PAPER_TYPES, RECEIPT_FORMATS, SCAN_SPEEDS, SHEET_PRESETS, DEFAULT_TPL, getPrintPrefs, setPrintPrefs, labelSize, labelOpts, labelPageCss, receiptCss, receiptWidth, sheetGrid, tplOf } from '../lib/printing.js'
+import { LABEL_FORMATS, PAPER_TYPES, RECEIPT_FORMATS, SCAN_SPEEDS, SHEET_PRESETS, getPrintPrefs, setPrintPrefs, labelSize, labelOpts, labelPageCss, receiptCss, receiptWidth, sheetGrid } from '../lib/printing.js'
 import { LabelCell, LabelPages } from '../components/LabelSheet.jsx'
+import LabelTemplates from '../components/LabelTemplates.jsx'
 import Icon from '../components/Icon.jsx'
 import { Notice, PageHeader } from '../components/ui.jsx'
 
@@ -21,9 +22,6 @@ export default function Hardware({ embedded = false }) {
   const set = (patch) => setPrefs(setPrintPrefs(patch))
   const F = labelSize(prefs)
   const O = labelOpts(app.settings, prefs)
-  const tpl = tplOf(app.settings)
-  const canTpl = app.can('settings.manage')
-  const setTpl = (patch) => app.saveSettings({ labelTpl: { ...tpl, ...patch } }, 'modèle d’étiquette')
   const isSheet = prefs.label === 'a4'
   const G = sheetGrid(prefs)
   const paper = PAPER_TYPES.find((x) => x.id === prefs.paper) || PAPER_TYPES[0]
@@ -129,20 +127,7 @@ export default function Hardware({ embedded = false }) {
           <p className="mt-2 text-xs text-neutral-500">Densité (noirceur) et vitesse d’impression se règlent dans le pilote de l’imprimante, pas dans l’application.</p>
         </details>
 
-        {/* Modèle d'étiquette (commun à toute l'entreprise) */}
-        <div className="space-y-3 rounded-2xl bg-paper p-3 ring-1 ring-line">
-          <div className="text-sm font-medium">Modèle d’étiquette {canTpl ? '(commun à toute l’entreprise)' : '(modifiable par l’administrateur)'}</div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={!canTpl} checked={!!tpl.shop} onChange={(e) => setTpl({ shop: e.target.checked })} />Nom de la boutique en haut</label>
-            <Field label="Texte de la boutique"><input className="input" disabled={!canTpl || !tpl.shop} placeholder={app.settings.company?.name || 'THAM BEAUTY'} value={tpl.shopText} onChange={(e) => setTpl({ shopText: e.target.value })} /></Field>
-            <Field label="Ligne libre en bas (ex. « Made in… », Instagram, téléphone)"><input className="input" disabled={!canTpl} value={tpl.extra} onChange={(e) => setTpl({ extra: e.target.value })} /></Field>
-            <div className="space-y-2 pt-1 text-sm">
-              <label className="flex items-center gap-2"><input type="checkbox" disabled={!canTpl} checked={!!tpl.date} onChange={(e) => setTpl({ date: e.target.checked })} />Afficher la date d’impression</label>
-              <label className="flex items-center gap-2"><input type="checkbox" disabled={!canTpl} checked={tpl.codeText !== false} onChange={(e) => setTpl({ codeText: e.target.checked })} />Écrire le code sous le code-barres</label>
-            </div>
-          </div>
-          <p className="text-xs text-neutral-500">La boutique, la ligne libre et la date n’apparaissent que sur les étiquettes assez hautes (28 mm et plus).</p>
-        </div>
+        <LabelTemplates prefs={prefs} onUse={(id) => set({ tplId: id })} F={F} />
 
         <div className="rounded-xl bg-paper p-3 ring-1 ring-line"><div className="mb-1 text-xs text-neutral-500">Aperçu d’une étiquette ({F.w} × {F.h} mm)</div><div className="overflow-x-auto"><LabelCell l={demo} show={show} w={F.w} h={F.h} o={O} edge /></div></div>
         <div className="flex flex-wrap gap-2">
