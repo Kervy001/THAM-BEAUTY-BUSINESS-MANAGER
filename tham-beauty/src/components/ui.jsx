@@ -29,10 +29,46 @@ export function Field({ label, children, hint, className = '' }) {
 export function Input({ label, hint, className, ...p }) {
   return <Field label={label} hint={hint} className={className}><input className="input" {...p} /></Field>
 }
+// Champ numérique « brouillon » : on peut tout effacer, taper « 0, », « - » ou « 12. » sans que le champ se vide tout seul
+// (un <input type="number"> contrôlé perd les saisies partielles, surtout sur mobile). La virgule est acceptée comme point.
+export function NumInput({ value, onChange, min, max, className = 'input', ...p }) {
+  const [t, setT] = useState(value == null ? '' : String(value))
+  const ref = useRef(null)
+  const neg = min != null && Number(min) < 0
+  // la valeur venue de l'extérieur n'écrase pas ce qu'on est en train de taper
+  useEffect(() => { if (document.activeElement !== ref.current) setT(value == null ? '' : String(value)) }, [value])
+  return (
+    <input {...p} ref={ref} className={className} type="text" inputMode={neg ? 'text' : 'decimal'} autoComplete="off" value={t}
+      onChange={(e) => {
+        const v = e.target.value.replace(',', '.')
+        if (!(neg ? /^-?\d*\.?\d*$/ : /^\d*\.?\d*$/).test(v)) return
+        setT(v)
+        onChange(v)
+      }}
+      onBlur={(e) => {
+        if (t !== '' && Number.isFinite(Number(t))) {
+          let n = Number(t)
+          if (min != null && n < Number(min)) n = Number(min)
+          if (max != null && n > Number(max)) n = Number(max)
+          if (String(n) !== t) { setT(String(n)); onChange(String(n)) }
+        }
+        p.onBlur?.(e)
+      }} />
+  )
+}
+// Champ texte « brouillon » : la valeur n'est enregistrée qu'en quittant le champ (ou Entrée), pas à chaque lettre
+// (évite les écritures répétées vers le serveur, et le texte qui saute pendant la frappe).
+export function DraftInput({ value, onCommit, className = 'input', ...p }) {
+  const [t, setT] = useState(value ?? '')
+  const ref = useRef(null)
+  useEffect(() => { if (document.activeElement !== ref.current) setT(value ?? '') }, [value])
+  const commit = () => { if (t !== (value ?? '')) onCommit(t) }
+  return <input {...p} ref={ref} className={className} value={t} onChange={(e) => setT(e.target.value)} onBlur={(e) => { commit(); p.onBlur?.(e) }} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur() } p.onKeyDown?.(e) }} />
+}
 export function NumberInput({ label, hint, className, value, onChange, ...p }) {
   return (
     <Field label={label} hint={hint} className={className}>
-      <input className="input" type="number" inputMode="decimal" step="any" min="0" value={value ?? ''} onChange={(e) => onChange(e.target.value)} {...p} />
+      <NumInput value={value ?? ''} onChange={onChange} min="0" {...p} />
     </Field>
   )
 }

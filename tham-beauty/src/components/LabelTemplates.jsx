@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useApp } from '../lib/store.jsx'
 import { EL_LABELS, newCustomTemplate, resolveTemplate, templatesOf, labelOpts, tplOf } from '../lib/printing.js'
 import { LabelCell } from './LabelSheet.jsx'
-import { Modal } from './ui.jsx'
+import { DraftInput, Modal, NumInput } from './ui.jsx'
 
 const DEMO = { name: 'Perruque Brésilienne', label: '24 pouces', code: 'TB123456', price: 125.5, cur: 'USD', key: 'demo' }
 const SHOW = { barcode: true, qr: true, price: true }
@@ -67,9 +67,9 @@ export default function LabelTemplates({ prefs, onUse, F }) {
 
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block"><span className="label">Nom de la boutique (affiché sur les étiquettes)</span>
-          <input className="input" disabled={!canTpl} placeholder={app.settings.company?.name || 'THAM BEAUTY'} value={base.shopText} onChange={(e) => setBase({ shopText: e.target.value })} /></label>
+          <DraftInput disabled={!canTpl} placeholder={app.settings.company?.name || 'THAM BEAUTY'} value={base.shopText} onCommit={(v) => setBase({ shopText: v })} /></label>
         <label className="block"><span className="label">Ligne libre (ex. Instagram, téléphone, « Made in… »)</span>
-          <input className="input" disabled={!canTpl} value={base.extra} onChange={(e) => setBase({ extra: e.target.value })} /></label>
+          <DraftInput disabled={!canTpl} value={base.extra} onCommit={(v) => setBase({ extra: v })} /></label>
       </div>
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
         <span className="text-xs text-neutral-500">Modèle « Standard » :</span>
@@ -124,7 +124,7 @@ export default function LabelTemplates({ prefs, onUse, F }) {
                   <div key={e.k} className={'flex flex-wrap items-center gap-x-3 gap-y-1.5 px-2.5 py-2 text-sm ' + (e.on ? '' : 'opacity-60')}>
                     <div className="flex flex-col"><button type="button" className="px-1 leading-none text-neutral-500 disabled:opacity-30" disabled={i === 0} onClick={() => move(i, -1)} aria-label="Monter">▲</button><button type="button" className="px-1 leading-none text-neutral-500 disabled:opacity-30" disabled={i === edit.els.length - 1} onClick={() => move(i, 1)} aria-label="Descendre">▼</button></div>
                     <label className="flex min-w-[10rem] items-center gap-1.5 font-medium"><input type="checkbox" checked={!!e.on} onChange={(ev) => setEl(i, { on: ev.target.checked })} />{EL_LABELS[e.k]}</label>
-                    <label className="flex items-center gap-1 text-xs text-neutral-600">Taille <input type="number" className="input !w-20 !py-1" min="40" max="500" step="10" value={e.size} onChange={(ev) => setEl(i, { size: ev.target.value === '' ? '' : Number(ev.target.value) })} />%</label>
+                    <label className="flex items-center gap-1 text-xs text-neutral-600">Taille <NumInput className="input !w-20 !py-1" min="40" max="500" value={e.size} onChange={(v) => setEl(i, { size: v === '' ? '' : Number(v) })} />%</label>
                     {e.k !== 'barcode' && <div className="flex overflow-hidden rounded-lg ring-1 ring-line">{AL.map(([a, l]) => <button key={a} type="button" onClick={() => setEl(i, { align: a })} className={'px-2 py-1 text-xs ' + (e.align === a ? 'bg-ink text-white' : 'bg-white text-neutral-700')}>{l}</button>)}</div>}
                     {e.k !== 'barcode' && <label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={!!e.bold} onChange={(ev) => setEl(i, { bold: ev.target.checked })} />Gras</label>}
                   </div>
