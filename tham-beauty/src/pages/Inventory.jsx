@@ -7,7 +7,7 @@ import { fdt, money, nowIso, today, uid } from '../lib/util.js'
 import Scanner from '../components/Scanner.jsx'
 import { useWedgeScanner, wedgeNotify } from '../lib/wedge.js'
 import Icon from '../components/Icon.jsx'
-import { Badge, Empty, Modal, Notice, PageHeader, Select } from '../components/ui.jsx'
+import { Badge, Empty, Modal, Notice, NumInput, PageHeader, Select } from '../components/ui.jsx'
 
 // Inventaire physique : on compte les articles (scan ou saisie), l'application montre les écarts avec le stock théorique,
 // puis la validation corrige le stock (ajustements tracés) et garde un rapport.
@@ -132,7 +132,7 @@ export default function Inventory() {
                 </div>
                 <div className="mt-2 flex items-center gap-2">
                   <button type="button" className="btn-ghost !px-3.5" onClick={() => bump(r.key, -1)}>−</button>
-                  <input className="input text-center" type="number" inputMode="numeric" min="0" placeholder="non compté" value={counts[r.key] ?? ''} onChange={(e) => setCount(r.key, e.target.value)} />
+                  <NumInput className="input text-center" min="0" placeholder="non compté" value={counts[r.key] ?? ''} onChange={(v) => setCount(r.key, v)} />
                   <button type="button" className="btn-ghost !px-3.5" onClick={() => bump(r.key, 1)}>+</button>
                 </div>
               </div>

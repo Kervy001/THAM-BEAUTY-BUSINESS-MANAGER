@@ -6,7 +6,7 @@ import { useApp } from '../lib/store.jsx'
 import { BUNDLE_STATUS, bundleCandidates, simulateBundle, suggestBundle } from '../lib/bundles.js'
 import { round2 } from '../lib/calc.js'
 import { money, today } from '../lib/util.js'
-import { Badge, Empty, Input, Ledger, Notice, NumberInput, PageHeader, Row, Select, Table, Textarea } from '../components/ui.jsx'
+import { Badge, Empty, Input, Ledger, Notice, NumberInput, NumInput, PageHeader, Row, Select, Table, Textarea } from '../components/ui.jsx'
 import Icon from '../components/Icon.jsx'
 
 const tone = (s) => ({ brouillon: 'gray', envoye: 'blue', accepte: 'amber', vendu: 'green', annule: 'red' }[s] || 'gray')
@@ -205,7 +205,7 @@ export function BundleEditor() {
                         <div className="text-[11px] text-neutral-500">{c ? `${c.projectNumber} · stock ${c.remaining}` : 'Plus en stock'}{c && c.ageDays > 0 ? ` · ${c.ageDays} j` : ''}{r && showCost ? ` · coût ${money(r.unitCost, cur)} → prix ${money(r.unitPrice, cur)}` : r ? ` · prix ${money(r.unitPrice, cur)}` : ''}</div>
                         {r && showCost && <div className={'text-[11px] ' + (r.profit < 0 ? 'text-blush-600' : 'text-emerald-700')}>bénéfice {money(r.profit, cur)}</div>}
                       </div>
-                      <input className="input !w-20 text-center" type="number" min="0" inputMode="numeric" value={l.qty} disabled={blocked} onChange={(e) => setQty(i, e.target.value)} aria-label="Quantité" />
+                      <NumInput className="input !w-20 text-center" min="0" value={l.qty} disabled={blocked} onChange={(v) => setQty(i, v)} aria-label="Quantité" />
                       {!blocked && <button type="button" className="grid h-9 w-9 place-items-center rounded-lg text-blush-600 hover:bg-blush-50" onClick={() => setLines((ls) => ls.filter((_, j) => j !== i))} aria-label="Retirer"><Icon name="x" size={16} /></button>}
                     </div>
                   )

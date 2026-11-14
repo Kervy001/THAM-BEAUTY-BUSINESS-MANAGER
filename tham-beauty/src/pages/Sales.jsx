@@ -4,7 +4,7 @@ import { arrayUnion } from 'firebase/firestore'
 import { useApp } from '../lib/store.jsx'
 import { convert, itemStock, itemStockAt, pctSub, round2, saleProfit, saleSummary, saleTotals } from '../lib/calc.js'
 import { DELIVERY, PAY_STATUS, fdate, fdt, money, nowIso, sellerOf, today, uid } from '../lib/util.js'
-import { Badge, Empty, Input, Modal, MoneyStat, Notice, NumberInput, PageHeader, Select, Stat, Table, Textarea, payTone } from '../components/ui.jsx'
+import { Badge, Empty, Input, Modal, MoneyStat, Notice, NumberInput, NumInput, PageHeader, Select, Stat, Table, Textarea, payTone } from '../components/ui.jsx'
 import Icon from '../components/Icon.jsx'
 import { receiptLogo } from '../components/Logo.jsx'
 import PaymentModal from '../components/PaymentModal.jsx'
@@ -597,7 +597,7 @@ function EditSaleModal({ s, onClose }) {
               </div>
               <div className="flex items-center gap-2">
                 <button type="button" className="btn-ghost !px-3.5" onClick={() => setQty(i, String(Math.max(minOf(l), (Number(l.qty) || 0) - 1)))}>−</button>
-                <input className="input text-center" type="number" inputMode="decimal" step="any" min={minOf(l)} max={maxOf(l)} value={l.qty} onChange={(e) => setQty(i, e.target.value)} />
+                <NumInput className="input text-center" min={minOf(l)} max={maxOf(l)} value={l.qty} onChange={(v) => setQty(i, v)} />
                 <button type="button" className="btn-ghost !px-3.5" onClick={() => setQty(i, String(Math.min(maxOf(l), (Number(l.qty) || 0) + 1)))}>+</button>
               </div>
               {l._new && <div className="mt-2"><NumberInput label={`Prix unitaire (${s.currency})`} value={l.unitPrice} onChange={(v) => setLines((ls) => ls.map((x, j) => (j === i ? { ...x, unitPrice: v } : x)))} /></div>}

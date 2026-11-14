@@ -5,7 +5,7 @@ import { fdate } from '../lib/util.js'
 import { LABEL_FORMATS, getPrintPrefs, setPrintPrefs, labelPageCss } from '../lib/printing.js'
 import { Barcode, QR } from '../components/CodeImages.jsx'
 import Icon from '../components/Icon.jsx'
-import { Empty, Input, PageHeader } from '../components/ui.jsx'
+import { Empty, Input, NumberInput, PageHeader } from '../components/ui.jsx'
 
 // Étiquette de colis : expéditeur, destinataire, numéro de vente, code-barres. Une étiquette par colis (1/3, 2/3…).
 export default function ParcelLabel() {
@@ -43,7 +43,7 @@ export default function ParcelLabel() {
           <Input label="Nom du destinataire" value={f.name} onChange={set('name')} />
           <Input label="Téléphone" value={f.phone} onChange={set('phone')} />
           <Input label="Adresse / ville de livraison" value={f.address} onChange={set('address')} />
-          <Input label="Nombre de colis" type="number" min="1" max="50" value={f.parcels} onChange={set('parcels')} />
+          <NumberInput label="Nombre de colis" min="1" max="50" value={f.parcels} onChange={(v) => setF({ ...f, parcels: v })} />
           <Input label="Note (fragile, contre remboursement…)" value={f.note} onChange={set('note')} />
           <label className="block"><span className="label">Format d’étiquette</span>
             <select className="input" value={fid} onChange={(e) => setPrefs(setPrintPrefs({ parcel: e.target.value }))}>{roll.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
