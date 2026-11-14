@@ -8,10 +8,10 @@ import { LABEL_FORMATS, PAPER_TYPES, RECEIPT_FORMATS, SCAN_SPEEDS, SHEET_PRESETS
 import { LabelCell, LabelPages } from '../components/LabelSheet.jsx'
 import LabelTemplates from '../components/LabelTemplates.jsx'
 import Icon from '../components/Icon.jsx'
-import { Notice, PageHeader } from '../components/ui.jsx'
+import { Notice, NumInput, PageHeader } from '../components/ui.jsx'
 
 const Field = ({ label, children, hint }) => <label className="block"><span className="label">{label}</span>{children}{hint && <span className="mt-1 block text-[11px] text-neutral-500">{hint}</span>}</label>
-const NumIn = ({ value, onChange, min, max, step = 'any' }) => <input className="input" type="number" inputMode="decimal" step={step} min={min} max={max} value={value} onChange={(e) => onChange(e.target.value)} />
+const NumIn = ({ value, onChange, min, max }) => <NumInput value={value} onChange={onChange} min={min} max={max} />
 
 // Matériel : configuration de base du scanner, de l'imprimante d'étiquettes et de l'imprimante de reçus (propre à cet appareil).
 export default function Hardware({ embedded = false }) {

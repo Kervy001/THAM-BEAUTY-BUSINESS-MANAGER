@@ -7,7 +7,7 @@ import { LabelPages } from '../components/LabelSheet.jsx'
 import Icon from '../components/Icon.jsx'
 import { exportLabels } from '../lib/labelExport.js'
 import { LABEL_FORMATS, getPrintPrefs, setPrintPrefs, labelSize, labelPageCss, labelOpts, templatesOf } from '../lib/printing.js'
-import { Empty, Notice, PageHeader } from '../components/ui.jsx'
+import { Empty, Notice, NumInput, PageHeader } from '../components/ui.jsx'
 
 // Étiquettes imprimables : code-barres (Code 128) + code QR + nom + prix, prêtes à coller sur les produits.
 export default function Labels() {
@@ -16,7 +16,8 @@ export default function Labels() {
   const pid = params.get('p')
   const projId = params.get('proj') // étiquettes d'un lot reçu : une par pièce reçue
   const [q, setQ] = useState('')
-  const [copies, setCopies] = useState(1)
+  const [copiesRaw, setCopies] = useState('1')
+  const copies = Math.max(1, Math.min(200, Math.floor(Number(copiesRaw)) || 1))
   const [mode, setMode] = useState(projId ? 'lot' : 'copies') // copies | stock | lot
   const byStock = mode === 'stock'
   const [show, setShow] = useState({ barcode: true, qr: true, price: true })
@@ -114,14 +115,14 @@ export default function Labels() {
             <label className="block"><span className="label">Format d’étiquette (gardé par défaut sur cet appareil)</span>
               <select className="input" value={prefs.label} onChange={(e) => chooseFormat(e.target.value)}>{LABEL_FORMATS.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}</select></label>
             {prefs.label === 'custom' && <>
-              <label className="block"><span className="label">Largeur (mm)</span><input className="input" type="number" min="15" max="210" value={prefs.custom?.w ?? 50} onChange={(e) => chooseCustom('w', e.target.value)} /></label>
-              <label className="block"><span className="label">Hauteur (mm)</span><input className="input" type="number" min="10" max="300" value={prefs.custom?.h ?? 30} onChange={(e) => chooseCustom('h', e.target.value)} /></label>
+              <label className="block"><span className="label">Largeur (mm)</span><NumInput value={prefs.custom?.w ?? 50} onChange={(v) => chooseCustom('w', v)} /></label>
+              <label className="block"><span className="label">Hauteur (mm)</span><NumInput value={prefs.custom?.h ?? 30} onChange={(v) => chooseCustom('h', v)} /></label>
             </>}
           </div>
           {<p className="text-xs text-neutral-500">Boutons « Image PNG » et « PDF » : enregistrez les étiquettes en fichiers (taille exacte {F.w} × {F.h} mm) pour les ouvrir dans l’application de votre imprimante. Pour imprimer ici : une étiquette par page. Dans la fenêtre d’impression : votre imprimante d’étiquettes, la même taille de papier, « Marges : aucune », « Échelle : 100 % ». Réglages avancés (type de papier, décalage, rotation, modèle d’étiquette) : <Link className="underline" to="/materiel">Scanner & imprimante</Link>.</p>}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <label className="block"><span className="label">Étiquettes par article</span>
-              <input className="input" type="number" min="1" max="200" value={copies} disabled={mode !== 'copies'} onChange={(e) => setCopies(Math.max(1, Math.min(200, Number(e.target.value) || 1)))} /></label>
+              <NumInput value={copiesRaw} disabled={mode !== 'copies'} onChange={setCopies} /></label>
             <label className="block"><span className="label">Nombre d’étiquettes</span>
               <select className="input" value={mode} onChange={(e) => setMode(e.target.value)}><option value="copies">Même nombre pour chaque article</option><option value="stock">Une par unité en stock</option>{projId && <option value="lot">Une par pièce reçue (ce lot)</option>}</select></label>
             {[['barcode', 'Code-barres'], ['qr', 'QR'], ['price', 'Prix']].map(([k, l]) => (
