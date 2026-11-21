@@ -60,3 +60,36 @@ test('ligne justifiée : les espaces du milieu sont conservés à l\'envoi', () 
   const u = receiptToEscpos({ lines: [], totals: [['Net', '24,00 $']] }, { cols: 32, feed: 0 })
   assert.ok(txt(u).includes('Net' + ' '.repeat(32 - 3 - 7) + '24,00 $'))
 })
+
+import { usbPrint, usbForget } from '../src/lib/usbprint.js'
+const mkUsb = (outEp = true) => {
+  const sent = []
+  const d = { vendorId: 1, productId: 2, productName: 'PT-210', opened: false, configuration: null,
+    configurations: [{ configurationValue: 1, interfaces: [{ interfaceNumber: 0, alternates: [{ alternateSetting: 0, interfaceClass: 7, endpoints: outEp ? [{ direction: 'in', type: 'bulk', endpointNumber: 1 }, { direction: 'out', type: 'bulk', endpointNumber: 2 }] : [] }] }] }],
+    open: async () => { d.opened = true }, close: async () => { d.opened = false }, selectConfiguration: async () => { d.configuration = { configurationValue: 1 } }, claimInterface: async () => {}, selectAlternateInterface: async () => {},
+    transferOut: async (n, data) => { sent.push([n, data.length]) } }
+  return { d, sent }
+}
+test('usbPrint : choisit la sortie bulk OUT et envoie par blocs', async () => {
+  const { d, sent } = mkUsb()
+  setNav({ usb: { requestDevice: async () => d, getDevices: async () => [] } })
+  await usbForget()
+  await usbPrint(new Uint8Array(1100), { pick: true })
+  assert.deepEqual(sent, [[2, 512], [2, 512], [2, 76]])
+})
+test('usbPrint : sans sortie utilisable → message clair', async () => {
+  const { d } = mkUsb(false)
+  setNav({ usb: { requestDevice: async () => d, getDevices: async () => [] } })
+  await usbForget()
+  await assert.rejects(() => usbPrint(new Uint8Array(3), { pick: true }), /recharger/)
+})
+test('usbPrint : accès refusé (pilote Windows) → message clair', async () => {
+  const { d } = mkUsb(); d.claimInterface = async () => { throw new Error('Access denied') }
+  setNav({ usb: { requestDevice: async () => d, getDevices: async () => [] } })
+  await usbForget()
+  await assert.rejects(() => usbPrint(new Uint8Array(3), { pick: true }), /Windows/)
+})
+test('usbPrint : navigateur sans WebUSB', async () => {
+  setNav({}); await usbForget()
+  await assert.rejects(() => usbPrint(new Uint8Array(3)), /USB indisponible/)
+})
