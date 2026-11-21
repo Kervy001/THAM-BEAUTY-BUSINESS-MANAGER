@@ -11,6 +11,7 @@ import PaymentModal from '../components/PaymentModal.jsx'
 import Scanner from '../components/Scanner.jsx'
 import { useWedgeScanner, wedgeNotify } from '../lib/wedge.js'
 import { RECEIPT_FORMATS, getPrintPrefs, receiptCss, receiptWidth } from '../lib/printing.js'
+import { logoDots, logoRaster } from '../lib/escposLogo.js'
 import { colsFor, receiptToEscpos } from '../lib/escpos.js'
 import { btPrint } from '../lib/btprint.js'
 import { usbPrint } from '../lib/usbprint.js'
@@ -324,7 +325,17 @@ export function SaleDetail() {
   const nav = useNavigate()
   const [doc, setDoc] = useState('facture')
   const [btBusy, setBtBusy] = useState(false)
-  const [fmt, setFmt] = useState(() => getPrintPrefs().receipt || app.settings?.receipt?.format || 'a4')
+  // Format par défaut selon le document (Réglages → Logo & documents) ; le réglage propre à l'appareil (Matériel) passe devant pour le reçu
+  const docFormat = (d) => (d === 'recu' ? getPrintPrefs().receipt || app.settings?.print?.recu || app.settings?.receipt?.format || 'a4' : app.settings?.print?.facture || 'a4')
+  const manualFmt = useRef(false)
+  const [fmt, setFmt] = useState(() => docFormat('facture'))
+  const showDoc = (d) => { setDoc(d); if (!manualFmt.current) setFmt(docFormat(d)) }
+  // Attend que le logo soit chargé avant d'ouvrir la fenêtre d'impression (sinon il manque sur le papier)
+  const printSoon = () => setTimeout(async () => {
+    const imgs = [...document.querySelectorAll('.print-area img')]
+    await Promise.all(imgs.map((im) => (im.complete ? 0 : new Promise((ok) => { im.onload = im.onerror = ok; setTimeout(ok, 2500) }))))
+    window.print()
+  }, 120)
   const [sp] = useSearchParams()
   const thermal = fmt === 'ticket' || fmt === 'ticket58'
   useEffect(() => {
@@ -339,8 +350,8 @@ export function SaleDetail() {
   useEffect(() => {
     if (sp.get('print') !== 'recu' || !hasSale || autoPrinted.current) return
     autoPrinted.current = true
-    setDoc('recu')
-    const t = setTimeout(() => window.print(), 600)
+    showDoc('recu')
+    const t = setTimeout(() => printSoon(), 500)
     return () => clearTimeout(t)
   }, [hasSale]) // eslint-disable-line react-hooks/exhaustive-deps
   const s = app.D.sales.find((x) => x.id === id)
@@ -362,7 +373,11 @@ export function SaleDetail() {
     const cols = Number(P.btCols) || colsFor(fmt === 'a4' ? 'ticket58' : fmt, receiptWidth(fmt, P))
     setBtBusy(true)
     try {
-      await (kind === 'usb' ? usbPrint : btPrint)(receiptToEscpos(model, { cols, accents: !!P.btAccents, cut: !!P.btCut, feed: Number(P.btFeed) || 0 }), { pick: false })
+      let logo
+      if (rc.showLogo) {
+        try { logo = await logoRaster(receiptLogo(app.settings), { widthDots: logoDots(cols, rc.logoWidth) }) } catch { app.notify('Logo non imprimé (image illisible).', 'error') }
+      }
+      await (kind === 'usb' ? usbPrint : btPrint)(receiptToEscpos(model, { cols, accents: !!P.btAccents, cut: !!P.btCut, feed: Number(P.btFeed) || 0, logo }), { pick: false })
       app.notify('Reçu envoyé à l’imprimante ✓')
     } catch (e) { app.notify(e?.message || 'Impression Bluetooth impossible.', 'error') } finally { setBtBusy(false) }
   }
@@ -393,11 +408,11 @@ export function SaleDetail() {
     <>
       <div className="no-print mb-3 text-sm"><Link to="/ventes" className="text-neutral-500 underline">← Ventes</Link></div>
       <PageHeader title={`Vente ${s.number}`}>
-        <select className="input no-print !w-auto !py-2" value={fmt} onChange={(e) => setFmt(e.target.value)} aria-label="Format du document">
+        <select className="input no-print !w-auto !py-2" value={fmt} onChange={(e) => { manualFmt.current = true; setFmt(e.target.value) }} aria-label="Format du document">
           {RECEIPT_FORMATS.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
         </select>
-        <button className="btn-ghost no-print" onClick={() => { setDoc('facture'); setTimeout(() => window.print(), 80) }}><Icon name="printer" size={16} />Facture</button>
-        <button className="btn-primary no-print" onClick={() => { setDoc('recu'); setTimeout(() => window.print(), 80) }}><Icon name="printer" size={16} />Reçu</button>
+        <button className="btn-ghost no-print" onClick={() => { showDoc('facture'); printSoon() }}><Icon name="printer" size={16} />Facture</button>
+        <button className="btn-primary no-print" onClick={() => { showDoc('recu'); printSoon() }}><Icon name="printer" size={16} />Reçu</button>
         <button className="btn-gold no-print" disabled={btBusy} onClick={() => printDirect('bt')} title="Imprimer directement sur une imprimante thermique Bluetooth (BLE)"><Icon name="printer" size={16} />{btBusy ? 'Envoi…' : 'Reçu Bluetooth'}</button>
         <button className="btn-gold no-print" disabled={btBusy} onClick={() => printDirect('usb')} title="Imprimer directement sur une imprimante thermique branchée en USB"><Icon name="printer" size={16} />{btBusy ? 'Envoi…' : 'Reçu USB'}</button>
         <Link className="btn-ghost no-print" to={`/ventes/${s.id}/colis`}><Icon name="package" size={16} />Étiquette colis</Link>

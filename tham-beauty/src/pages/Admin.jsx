@@ -10,6 +10,7 @@ import { LOCK_CHOICES } from '../lib/security.js'
 import { Badge, Empty, Input, Modal, Notice, NumberInput, PageHeader, PasswordConfirm, Select, Table, Tabs, Textarea } from '../components/ui.jsx'
 import Icon from '../components/Icon.jsx'
 import { receiptLogo } from '../components/Logo.jsx'
+import { LABEL_FORMATS, RECEIPT_FORMATS } from '../lib/printing.js'
 
 export default function Admin() {
   const app = useApp()
@@ -209,6 +210,7 @@ function Settings() {
   }
   const co = (k) => (e) => setS({ ...s, company: { ...s.company, [k]: e.target.value } })
   const rc = (k, v) => setS({ ...s, receipt: { ...s.receipt, [k]: v } })
+  const pr = (k, v) => setS({ ...s, print: { ...(s.print || {}), [k]: v } })
   const sec = (k, v) => setS({ ...s, security: { ...s.security, [k]: v } })
   const cm = (k, v) => setS({ ...s, commission: { ...s.commission, [k]: v } })
   const setLoc = (i, name) => setS({ ...s, locations: s.locations.map((l, j) => (j === i ? { ...l, name } : l)) })
@@ -229,10 +231,19 @@ function Settings() {
             {logoErr && <div className="text-sm text-blush-600">{logoErr}</div>}
           </div>
         </div>
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Select label="Logo sur les documents" value={s.receipt.showLogo ? 'oui' : 'non'} onChange={(v) => rc('showLogo', v === 'oui')} options={[{ value: 'oui', label: 'Afficher' }, { value: 'non', label: 'Masquer' }]} />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Select label="Logo sur les documents (y compris reçus Bluetooth / USB)" value={s.receipt.showLogo ? 'oui' : 'non'} onChange={(v) => rc('showLogo', v === 'oui')} options={[{ value: 'oui', label: 'Afficher' }, { value: 'non', label: 'Masquer' }]} />
           <NumberInput label="Largeur du logo (px)" value={s.receipt.logoWidth} onChange={(v) => rc('logoWidth', Math.max(30, Math.min(260, Number(v) || 90)))} />
-          <Select label="Format d'impression par défaut" value={s.receipt.format} onChange={(v) => rc('format', v)} options={[{ value: 'a4', label: 'A4' }, { value: 'ticket', label: 'Ticket 80 mm' }]} />
+        </div>
+        <div className="mt-1 border-t border-line pt-3">
+          <div className="font-display text-sm font-semibold">Formats d’impression par défaut (selon le type de document)</div>
+          <p className="mb-2 text-xs text-neutral-500">Chaque document s’ouvre avec son format. Vous pouvez toujours le changer au moment d’imprimer ; les appareils qui ont leur propre réglage (Matériel) gardent le leur.</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Select label="Facture" value={s.print?.facture || 'a4'} onChange={(v) => pr('facture', v)} options={RECEIPT_FORMATS.map((f) => ({ value: f.id, label: f.name }))} />
+            <Select label="Reçu de paiement" value={s.print?.recu || ''} onChange={(v) => pr('recu', v)} options={[{ value: '', label: 'Automatique (réglage appareil)' }, ...RECEIPT_FORMATS.map((f) => ({ value: f.id, label: f.name }))]} />
+            <Select label="Étiquette de colis" value={s.print?.colis || ''} onChange={(v) => pr('colis', v)} options={[{ value: '', label: 'Automatique (100 × 150 mm)' }, ...LABEL_FORMATS.filter((f) => !f.sheet).map((f) => ({ value: f.id, label: f.name }))]} />
+            <Select label="Étiquettes produits (code-barres)" value={s.print?.label || ''} onChange={(v) => pr('label', v)} options={[{ value: '', label: 'Automatique (réglage appareil)' }, ...LABEL_FORMATS.map((f) => ({ value: f.id, label: f.name }))]} />
+          </div>
         </div>
       </div>
       <div className="card grid gap-3 sm:grid-cols-2">

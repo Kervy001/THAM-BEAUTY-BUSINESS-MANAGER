@@ -9,6 +9,8 @@ import { LabelCell, LabelPages } from '../components/LabelSheet.jsx'
 import { btName, btPrint, btSupported, btUnsupportedMsg } from '../lib/btprint.js'
 import { usbName, usbPrint, usbSupported } from '../lib/usbprint.js'
 import { colsFor, receiptToEscpos } from '../lib/escpos.js'
+import { logoDots, logoRaster } from '../lib/escposLogo.js'
+import { receiptLogo } from '../components/Logo.jsx'
 import LabelTemplates from '../components/LabelTemplates.jsx'
 import Icon from '../components/Icon.jsx'
 import { Notice, NumInput, PageHeader } from '../components/ui.jsx'
@@ -51,7 +53,10 @@ export default function Hardware({ embedded = false }) {
     try {
       const model = { company: { name: app.settings.company?.name || 'THAM BEAUTY', address: app.settings.company?.address, phone: app.settings.company?.phone }, docTitle: 'Test impression', number: 'Bluetooth OK', date: new Date().toLocaleDateString('fr-FR'), customer: 'Client test', seller: '', lines: [{ label: 'Produit exemple avec un nom un peu long', qty: 2, unit: '12,50 $', total: '25,00 $' }], totals: [['Net', '25,00 $'], ['Solde', '0,00 $', true]], payments: [], footer: 'Merci ! Accents : é è à ç ô' }
       const cols = Number(prefs.btCols) || colsFor(recId, prefs.receiptW)
-      await (kind === 'usb' ? usbPrint : btPrint)(receiptToEscpos(model, { cols, accents: !!prefs.btAccents, cut: !!prefs.btCut, feed: Number(prefs.btFeed) || 0 }), { pick: true })
+      let logo
+      const rcs = app.settings.receipt || {}
+      if (rcs.showLogo) { try { logo = await logoRaster(receiptLogo(app.settings), { widthDots: logoDots(cols, rcs.logoWidth) }) } catch { app.notify('Logo non imprimé (image illisible).', 'error') } }
+      await (kind === 'usb' ? usbPrint : btPrint)(receiptToEscpos(model, { cols, accents: !!prefs.btAccents, cut: !!prefs.btCut, feed: Number(prefs.btFeed) || 0, logo }), { pick: true })
       app.notify('Test envoyé à l’imprimante ✓')
     } catch (e) { app.notify(e?.message || 'Impression Bluetooth impossible.', 'error') } finally { setBtBusy(false) }
   }
