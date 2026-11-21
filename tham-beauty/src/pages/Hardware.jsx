@@ -7,6 +7,7 @@ import { scanBeep } from '../lib/alerts.js'
 import { LABEL_FORMATS, PAPER_TYPES, RECEIPT_FORMATS, SCAN_SPEEDS, SHEET_PRESETS, getPrintPrefs, setPrintPrefs, labelSize, labelOpts, labelPageCss, receiptCss, receiptWidth, sheetGrid } from '../lib/printing.js'
 import { LabelCell, LabelPages } from '../components/LabelSheet.jsx'
 import { btName, btPrint, btSupported } from '../lib/btprint.js'
+import { usbName, usbPrint, usbSupported } from '../lib/usbprint.js'
 import { colsFor, receiptToEscpos } from '../lib/escpos.js'
 import LabelTemplates from '../components/LabelTemplates.jsx'
 import Icon from '../components/Icon.jsx'
@@ -45,12 +46,12 @@ export default function Hardware({ embedded = false }) {
     setTimeout(() => { window.print(); setTimeout(() => { st.remove(); document.body.classList.remove('print-test-label', 'print-test-receipt'); delete document.body.dataset.testKind }, 800) }, 200)
   }
   const [btBusy, setBtBusy] = useState(false)
-  async function btTest() {
+  async function btTest(kind = 'bt') {
     setBtBusy(true)
     try {
       const model = { company: { name: app.settings.company?.name || 'THAM BEAUTY', address: app.settings.company?.address, phone: app.settings.company?.phone }, docTitle: 'Test impression', number: 'Bluetooth OK', date: new Date().toLocaleDateString('fr-FR'), customer: 'Client test', seller: '', lines: [{ label: 'Produit exemple avec un nom un peu long', qty: 2, unit: '12,50 $', total: '25,00 $' }], totals: [['Net', '25,00 $'], ['Solde', '0,00 $', true]], payments: [], footer: 'Merci ! Accents : é è à ç ô' }
       const cols = Number(prefs.btCols) || colsFor(recId, prefs.receiptW)
-      await btPrint(receiptToEscpos(model, { cols, accents: !!prefs.btAccents, cut: !!prefs.btCut, feed: Number(prefs.btFeed) || 0 }), { pick: true })
+      await (kind === 'usb' ? usbPrint : btPrint)(receiptToEscpos(model, { cols, accents: !!prefs.btAccents, cut: !!prefs.btCut, feed: Number(prefs.btFeed) || 0 }), { pick: true })
       app.notify('Test envoyé à l’imprimante ✓')
     } catch (e) { app.notify(e?.message || 'Impression Bluetooth impossible.', 'error') } finally { setBtBusy(false) }
   }
@@ -163,9 +164,9 @@ export default function Hardware({ embedded = false }) {
         <button className="btn-ghost" onClick={() => printTest('receipt')}><Icon name="printer" size={16} />Imprimer un reçu test</button>
 
         <div className="space-y-3 rounded-2xl bg-paper p-3 ring-1 ring-line">
-          <div className="text-sm font-medium">Impression directe par Bluetooth (imprimantes de tickets 58 / 80 mm)</div>
-          <p className="text-xs text-neutral-600">Pour une imprimante Bluetooth qui n’apparaît pas dans la fenêtre d’impression, ou qui sort une feuille A4 avec un tout petit reçu : le bouton « Reçu Bluetooth » (page d’une vente) envoie le reçu directement à l’imprimante, à sa vraie largeur. Fonctionne sur <b>Chrome Android, Chromebook et ordinateur</b> avec une imprimante <b>Bluetooth BLE</b> ; pas sur iPhone / iPad.</p>
-          {!btSupported() && <Notice tone="blue">Ce navigateur ne permet pas le Bluetooth direct (iPhone / Safari / Firefox). Utilisez Chrome sur Android, Chromebook ou ordinateur.</Notice>}
+          <div className="text-sm font-medium">Impression directe Bluetooth ou câble USB (imprimantes de tickets 58 / 80 mm)</div>
+          <p className="text-xs text-neutral-600">Pour une imprimante Bluetooth qui n’apparaît pas dans la fenêtre d’impression, ou qui sort une feuille A4 avec un tout petit reçu : les boutons « Reçu Bluetooth » / « Reçu USB » (page d’une vente) envoient le reçu directement à l’imprimante, à sa vraie largeur. Fonctionne sur <b>Chrome Android, Chromebook et ordinateur</b> ; pas sur iPhone / iPad. Bluetooth : imprimante <b>BLE</b> seulement. USB : sous Windows, le pilote de l’imprimante bloque souvent cette méthode.</p>
+          {!btSupported() && !usbSupported() && <Notice tone="blue">Ce navigateur ne permet pas le Bluetooth direct (iPhone / Safari / Firefox). Utilisez Chrome sur Android, Chromebook ou ordinateur.</Notice>}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Field label="Caractères par ligne" hint={`Vide = automatique (${colsFor(recId, prefs.receiptW)}). 58 mm : 32 ; 80 mm : 48`}><NumIn value={prefs.btCols} min="20" max="64" step="1" onChange={(v) => set({ btCols: v })} /></Field>
             <Field label="Lignes vides à la fin"><NumIn value={prefs.btFeed} min="0" max="12" step="1" onChange={(v) => set({ btFeed: v })} /></Field>
@@ -174,8 +175,9 @@ export default function Hardware({ embedded = false }) {
           </div>
           <p className="text-xs text-neutral-500">Si les accents sortent mal (symboles bizarres), laissez « accents » décoché : le reçu s’imprime sans accents. </p>
           <div className="flex flex-wrap items-center gap-2">
-            <button className="btn-gold" disabled={btBusy || !btSupported()} onClick={btTest}><Icon name="printer" size={16} />{btBusy ? 'Envoi…' : 'Choisir l’imprimante et imprimer un test'}</button>
-            {btName() && <span className="text-xs text-emerald-700">Imprimante : {btName()}</span>}
+            <button className="btn-gold" disabled={btBusy || !btSupported()} onClick={() => btTest('bt')}><Icon name="printer" size={16} />{btBusy ? 'Envoi…' : 'Tester par Bluetooth'}</button>
+            <button className="btn-gold" disabled={btBusy || !usbSupported()} onClick={() => btTest('usb')}><Icon name="printer" size={16} />{btBusy ? 'Envoi…' : 'Tester par câble USB'}</button>
+            {(btName() || usbName()) && <span className="text-xs text-emerald-700">Imprimante : {usbName() || btName()}</span>}
           </div>
           <p className="text-xs text-neutral-500">Allumez l’imprimante (voyant bleu/vert), activez le Bluetooth du téléphone, puis choisissez-la dans la liste. Il n’est pas nécessaire de la « jumeler » dans les réglages du téléphone. Si elle n’apparaît pas ou affiche une erreur, elle utilise probablement le Bluetooth classique : utilisez alors son application ou la fenêtre d’impression.</p>
         </div>

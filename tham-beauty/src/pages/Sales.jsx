@@ -13,6 +13,7 @@ import { useWedgeScanner, wedgeNotify } from '../lib/wedge.js'
 import { RECEIPT_FORMATS, getPrintPrefs, receiptCss, receiptWidth } from '../lib/printing.js'
 import { colsFor, receiptToEscpos } from '../lib/escpos.js'
 import { btPrint, btSupported } from '../lib/btprint.js'
+import { usbPrint, usbSupported } from '../lib/usbprint.js'
 import { reminderMessage, saleMessage, waLink } from '../lib/whatsapp.js'
 import { lookupCode, stockMatchesFor } from '../lib/codes.js'
 import { allocateForSale, bundleCandidates } from '../lib/bundles.js'
@@ -346,8 +347,8 @@ export function SaleDetail() {
   if (!s) return <Empty>Vente introuvable (chargement…). <Link className="underline" to="/ventes">Retour</Link></Empty>
   const r = saleSummary(s)
   const canPay = app.can('sales.pay')
-  // Impression directe du reçu sur une imprimante thermique Bluetooth (ESC/POS), sans passer par la fenêtre d'impression
-  async function printBluetooth(pick = false) {
+  // Impression directe du reçu sur une imprimante thermique (ESC/POS) par Bluetooth ou câble USB, sans passer par la fenêtre d'impression
+  async function printDirect(kind) {
     if (btBusy) return
     const P = getPrintPrefs()
     const m = (x) => money(x, s.currency)
@@ -361,7 +362,7 @@ export function SaleDetail() {
     const cols = Number(P.btCols) || colsFor(fmt === 'a4' ? 'ticket58' : fmt, receiptWidth(fmt, P))
     setBtBusy(true)
     try {
-      await btPrint(receiptToEscpos(model, { cols, accents: !!P.btAccents, cut: !!P.btCut, feed: Number(P.btFeed) || 0 }), { pick })
+      await (kind === 'usb' ? usbPrint : btPrint)(receiptToEscpos(model, { cols, accents: !!P.btAccents, cut: !!P.btCut, feed: Number(P.btFeed) || 0 }), { pick: false })
       app.notify('Reçu envoyé à l’imprimante ✓')
     } catch (e) { app.notify(e?.message || 'Impression Bluetooth impossible.', 'error') } finally { setBtBusy(false) }
   }
@@ -397,7 +398,8 @@ export function SaleDetail() {
         </select>
         <button className="btn-ghost no-print" onClick={() => { setDoc('facture'); setTimeout(() => window.print(), 80) }}><Icon name="printer" size={16} />Facture</button>
         <button className="btn-primary no-print" onClick={() => { setDoc('recu'); setTimeout(() => window.print(), 80) }}><Icon name="printer" size={16} />Reçu</button>
-        {btSupported() && <button className="btn-gold no-print" disabled={btBusy} onClick={() => printBluetooth(false)} title="Imprimer directement sur une imprimante thermique Bluetooth (BLE)"><Icon name="printer" size={16} />{btBusy ? 'Envoi…' : 'Reçu Bluetooth'}</button>}
+        {btSupported() && <button className="btn-gold no-print" disabled={btBusy} onClick={() => printDirect('bt')} title="Imprimer directement sur une imprimante thermique Bluetooth (BLE)"><Icon name="printer" size={16} />{btBusy ? 'Envoi…' : 'Reçu Bluetooth'}</button>}
+        {usbSupported() && <button className="btn-gold no-print" disabled={btBusy} onClick={() => printDirect('usb')} title="Imprimer directement sur une imprimante thermique branchée en USB"><Icon name="printer" size={16} />{btBusy ? 'Envoi…' : 'Reçu USB'}</button>}
         <Link className="btn-ghost no-print" to={`/ventes/${s.id}/colis`}><Icon name="package" size={16} />Étiquette colis</Link>
         <a className="btn-gold no-print" target="_blank" rel="noopener noreferrer" aria-label="Envoyer par WhatsApp"
           href={waLink(app.D.customers.find((c) => c.id === s.customerId)?.phone, saleMessage(s, r, app.settings.company, 'facture'), app.settings.whatsappCC)}>WhatsApp</a>
