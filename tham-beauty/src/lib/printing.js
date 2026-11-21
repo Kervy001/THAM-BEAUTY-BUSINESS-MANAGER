@@ -52,6 +52,8 @@ const DEFAULTS = {
   tplId: '', rotate: false, offX: 0, offY: 0, scale: 100, pad: 1.2, fontScale: 100, contour: false,
   // reçus
   receipt: '', receiptW: 72, receiptMargin: 2, receiptFont: 100, autoReceipt: false,
+  // impression directe Bluetooth (ESC/POS) : colonnes ('' = selon le format), accents (CP858), coupe, lignes vides à la fin
+  btCols: '', btAccents: false, btCut: false, btFeed: 3,
   // scanner
   scanSound: true, scanGap: 35, scanMin: 4, scanPrefix: '', scanSuffix: 'auto'
 }
