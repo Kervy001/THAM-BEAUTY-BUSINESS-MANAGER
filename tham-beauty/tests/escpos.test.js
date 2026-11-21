@@ -40,9 +40,9 @@ test('btPrint : choisit la caractéristique inscriptible et envoie par blocs', a
   setNav({ bluetooth: { requestDevice: async () => dev } })
   btForget()
   await btPrint(new Uint8Array(70), { pick: true, delay: 0 })
-  assert.deepEqual(sent, [20, 20, 20, 10])
+  assert.deepEqual(sent, [70])
   await btPrint(new Uint8Array(5), { delay: 0 }) // réutilise l'appareil
-  assert.equal(sent.length, 5)
+  assert.equal(sent.length, 2)
 })
 test('btPrint : imprimante sans caractéristique BLE inscriptible → message clair', async () => {
   const dev = { name: 'X', gatt: { connected: false, connect: async () => { dev.gatt.connected = true; return { getPrimaryServices: async () => [{ getCharacteristics: async () => [{ properties: { read: true } }] }] } } } }
@@ -103,4 +103,41 @@ test('compact : article court + détail + total sur UNE seule ligne ; article lo
 test('compact : numéro et date sur une ligne', () => {
   const u = receiptToEscpos({ number: 'V-0001', date: '21/11/2026', lines: [], totals: [] }, { cols: 32, feed: 0 })
   assert.ok(txt(u).includes('V-0001  21/11/2026'))
+})
+
+import { rasterToEscpos, rgbaToGray, logoDots } from '../src/lib/escposLogo.js'
+test('logo raster : en-tête GS v 0, 1 = noir, largeur arrondie à 8', () => {
+  const w = 10, h = 3, g = new Float32Array(w * h).fill(255)
+  g[0] = 0 // pixel noir en haut à gauche
+  const u = rasterToEscpos(g, w, h, { dither: false })
+  assert.deepEqual([...u.slice(0, 8)], [0x1d, 0x76, 0x30, 0, 2, 0, 3, 0]) // 16 points = 2 octets, 3 lignes
+  assert.equal(u.length, 8 + 2 * 3)
+  assert.equal(u[8], 0x80); assert.equal(u[9], 0)
+})
+test('logo raster : bandes de 128 lignes et gris moyen tramé ≈ 50 % de points', () => {
+  const w = 64, h = 300, g = new Float32Array(w * h).fill(128)
+  const u = rasterToEscpos(g, w, h)
+  assert.equal(u.length, 3 * 8 + 8 * 300) // 3 bandes (128+128+44)
+  let ones = 0; for (let i = 0; i < u.length; i++) for (let b = 0; b < 8; b++) ones += (u[i] >> b) & 1
+  assert.ok(ones > 0.2 * w * h && ones < 0.9 * w * h)
+})
+test('logo clair sur fond transparent : inversé pour rester visible', () => {
+  const rgba = new Uint8ClampedArray(4 * 4); for (let i = 0; i < 4; i++) { rgba.set([255, 255, 255, i < 2 ? 255 : 0], i * 4) }
+  const g = rgbaToGray(rgba, 2, 2)
+  assert.ok(g[0] < 10 && g[3] > 250) // pixel blanc opaque → noir ; transparent → blanc
+})
+test('reçu avec logo : octets du logo insérés au début', () => {
+  const logo = rasterToEscpos(new Float32Array(16 * 2).fill(0), 16, 2, { dither: false })
+  const u = receiptToEscpos({ lines: [], totals: [] }, { cols: 32, logo, feed: 0 })
+  assert.ok(u.join(',').includes('29,118,48,0,2,0,2,0'))
+})
+test('logoDots : largeur selon le papier', () => { assert.ok(logoDots(32, 90) <= 384 && logoDots(48, 90) <= 576 && logoDots(32, 260) === 384) })
+test('btPrint : si l’imprimante refuse les gros blocs, repasse à 20 octets', async () => {
+  const sent = []
+  const wchar = { properties: { writeWithoutResponse: true }, writeValueWithoutResponse: async (p) => { if (p.length > 20) throw new Error('too long'); sent.push(p.length) } }
+  const dev = { name: 'P', gatt: { connected: false, connect: async () => { dev.gatt.connected = true; return { getPrimaryServices: async () => [{ getCharacteristics: async () => [wchar] }] } } } }
+  setNav({ bluetooth: { requestDevice: async () => dev } })
+  btForget()
+  await btPrint(new Uint8Array(50), { pick: true, delay: 0 })
+  assert.deepEqual(sent, [20, 20, 10])
 })
