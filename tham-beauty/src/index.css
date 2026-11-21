@@ -70,6 +70,8 @@ main .card:nth-child(4) { animation-delay: .15s; } main .card:nth-child(5) { ani
   body * { visibility: hidden; }
   .print-area, .print-area * { visibility: visible; }
   .print-area { position: absolute; left: 0; top: 0; width: 100%; padding: 0 !important; border: none !important; box-shadow: none !important; background: #fff !important; }
+  /* Ticket thermique : occupe toute la largeur du papier (au lieu d'un petit reçu dans un coin de feuille A4) */
+  .print-area.receipt-thermal { max-width: none !important; width: 100% !important; margin: 0 !important; }
   .no-print { display: none !important; }
   .print-area img { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
