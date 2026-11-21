@@ -53,7 +53,7 @@ test('btPrint : imprimante sans caractéristique BLE inscriptible → message cl
 test('btPrint : navigateur sans Web Bluetooth', async () => {
   setNav({})
   btForget()
-  await assert.rejects(() => btPrint(new Uint8Array(3)), /Bluetooth indisponible/)
+  await assert.rejects(() => btPrint(new Uint8Array(3)), /Bluetooth direct/)
 })
 
 test('ligne justifiée : les espaces du milieu sont conservés à l\'envoi', () => {
@@ -92,4 +92,15 @@ test('usbPrint : accès refusé (pilote Windows) → message clair', async () =>
 test('usbPrint : navigateur sans WebUSB', async () => {
   setNav({}); await usbForget()
   await assert.rejects(() => usbPrint(new Uint8Array(3)), /USB indisponible/)
+})
+
+test('compact : article court + détail + total sur UNE seule ligne ; article long sur plusieurs lignes', () => {
+  const u = receiptToEscpos({ lines: [{ label: 'Colle', qty: 1, unit: '3,00 $', total: '3,00 $' }, { label: 'Perruque Brésilienne 24 pouces très longue', qty: 2, unit: '12,50 $', total: '25,00 $' }], totals: [] }, { cols: 32, feed: 0 })
+  const rows = txt(u).split('\n').map((x) => x.replace(/[\x00-\x1f]/g, '').replace(/^[!E]+/, ''))
+  assert.ok(rows.some((x) => /^Colle\s+1x3,00 \$ 3,00 \$$/.test(x)), rows.join('|'))
+  assert.ok(rows.some((x) => /^2 x 12,50 \$\s+25,00 \$$/.test(x)), rows.join('|'))
+})
+test('compact : numéro et date sur une ligne', () => {
+  const u = receiptToEscpos({ number: 'V-0001', date: '21/11/2026', lines: [], totals: [] }, { cols: 32, feed: 0 })
+  assert.ok(txt(u).includes('V-0001  21/11/2026'))
 })
