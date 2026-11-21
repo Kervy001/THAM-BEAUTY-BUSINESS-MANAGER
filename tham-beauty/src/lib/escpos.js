@@ -69,16 +69,21 @@ export function receiptToEscpos(m, o = {}) {
   if (co.phone) line(co.phone)
   line('')
   bold(true); line(m.docTitle || 'Reçu'); bold(false)
-  if (m.number) line(m.number)
-  if (m.date) line(m.date)
+  // numéro et date sur la même ligne quand ça tient
+  if (m.number && m.date && clean(m.number, true).length + clean(m.date, true).length + 2 <= cols) line(clean(m.number, true) + '  ' + clean(m.date, true))
+  else { if (m.number) line(m.number); if (m.date) line(m.date) }
   align(0)
   sep()
   if (m.customer) for (const r of wrap('Client : ' + m.customer, cols)) line(r)
   if (m.seller) for (const r of wrap('Vendeur : ' + m.seller, cols)) line(r)
   sep()
   for (const l of m.lines || []) {
-    bold(true); for (const r of wrap(l.label, cols)) line(r); bold(false)
-    for (const r of pad2(`${l.qty} x ${l.unit}`, l.total, cols)) line(r)
+    const name = clean(l.label, true), right = `${l.qty}x${clean(l.unit, true)} ${clean(l.total, true)}`
+    if (name.length + 1 + right.length <= cols) { bold(true); line(name + ' '.repeat(cols - name.length - right.length) + right); bold(false) } // tout sur une ligne quand ça tient
+    else {
+      bold(true); for (const r of wrap(l.label, cols)) line(r); bold(false)
+      for (const r of pad2(`${l.qty} x ${l.unit}`, l.total, cols)) line(r)
+    }
     if (l.disc) for (const r of pad2('  Réduction', '-' + l.disc, cols)) line(r)
     if (l.returned) line(`  retourné : ${l.returned}`)
   }

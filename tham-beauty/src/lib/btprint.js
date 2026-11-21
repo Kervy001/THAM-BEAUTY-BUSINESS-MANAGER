@@ -8,11 +8,15 @@ const SERVICES = [
 let dev = null, chr = null
 
 export const btSupported = () => typeof navigator !== 'undefined' && !!navigator.bluetooth && (typeof window === 'undefined' || window.isSecureContext !== false)
+const isIOS = () => typeof navigator !== 'undefined' && (/iPhone|iPad|iPod/.test(navigator.userAgent || '') || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1))
+export const btUnsupportedMsg = () => (isIOS()
+  ? 'Safari sur iPhone/iPad ne permet pas le Bluetooth direct. Utilisez un navigateur compatible Web Bluetooth (par ex. « Bluefy », gratuit), ou une imprimante AirPrint / Wi-Fi.'
+  : 'Ce navigateur ne permet pas le Bluetooth direct : utilisez Chrome ou Edge (Android, Chromebook, Windows, Mac), pas Safari ni Firefox.')
 export const btName = () => (dev && dev.name) || ''
 export function btForget() { try { dev?.gatt?.connected && dev.gatt.disconnect() } catch { /* rien */ } dev = null; chr = null }
 
 async function connect(pick) {
-  if (!btSupported()) throw new Error('Bluetooth indisponible ici : utilisez Chrome sur Android, Chromebook ou ordinateur (pas Safari / iPhone).')
+  if (!btSupported()) throw new Error(btUnsupportedMsg())
   if (!dev || pick) {
     dev = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: SERVICES })
     chr = null
