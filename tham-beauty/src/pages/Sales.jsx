@@ -10,7 +10,9 @@ import { receiptLogo } from '../components/Logo.jsx'
 import PaymentModal from '../components/PaymentModal.jsx'
 import Scanner from '../components/Scanner.jsx'
 import { useWedgeScanner, wedgeNotify } from '../lib/wedge.js'
-import { RECEIPT_FORMATS, getPrintPrefs, receiptCss } from '../lib/printing.js'
+import { RECEIPT_FORMATS, getPrintPrefs, receiptCss, receiptWidth } from '../lib/printing.js'
+import { colsFor, receiptToEscpos } from '../lib/escpos.js'
+import { btPrint, btSupported } from '../lib/btprint.js'
 import { reminderMessage, saleMessage, waLink } from '../lib/whatsapp.js'
 import { lookupCode, stockMatchesFor } from '../lib/codes.js'
 import { allocateForSale, bundleCandidates } from '../lib/bundles.js'
@@ -320,6 +322,7 @@ export function SaleDetail() {
   const [dlg, setDlg] = useState(null) // 'request' | 'delete' | 'approve' | 'refuse' | 'edit'
   const nav = useNavigate()
   const [doc, setDoc] = useState('facture')
+  const [btBusy, setBtBusy] = useState(false)
   const [fmt, setFmt] = useState(() => getPrintPrefs().receipt || app.settings?.receipt?.format || 'a4')
   const [sp] = useSearchParams()
   const thermal = fmt === 'ticket' || fmt === 'ticket58'
@@ -343,6 +346,25 @@ export function SaleDetail() {
   if (!s) return <Empty>Vente introuvable (chargement…). <Link className="underline" to="/ventes">Retour</Link></Empty>
   const r = saleSummary(s)
   const canPay = app.can('sales.pay')
+  // Impression directe du reçu sur une imprimante thermique Bluetooth (ESC/POS), sans passer par la fenêtre d'impression
+  async function printBluetooth(pick = false) {
+    if (btBusy) return
+    const P = getPrintPrefs()
+    const m = (x) => money(x, s.currency)
+    const model = {
+      company: { name: co.name, address: co.address, phone: co.phone }, docTitle: 'Reçu de paiement', number: s.number, date: fdate(s.date), customer: s.customerName, seller: sellerOf(s),
+      lines: r.lines.map((p) => ({ label: p.l.label, qty: p.qty, unit: m(p.l.unitPrice), total: m(p.net), disc: p.lineDisc + p.globalShare > 0 ? m(p.lineDisc + p.globalShare) : '', returned: p.l.qtyReturned > 0 ? p.l.qtyReturned : 0 })),
+      totals: [['Montant brut', m(r.gross)], ...(r.totalDiscount > 0 ? [['Réductions', '-' + m(r.totalDiscount)]] : []), ['Net', m(r.net), true], ...(r.net !== r.netKept ? [['Après retours', m(r.netKept)]] : []), ['Payé', m(r.paid)], ['Solde', m(r.balance), true]],
+      payments: (s.payments || []).filter((p) => p.status !== 'annule').map((p) => `${fdate(p.date)} - ${p.type === 'refund' ? 'Remboursement' : 'Paiement'} ${money(p.amount, p.currency)} (${p.method})`),
+      note: `Taux : 1 USD = ${s.rate} HTG`, footer: co.footer
+    }
+    const cols = Number(P.btCols) || colsFor(fmt === 'a4' ? 'ticket58' : fmt, receiptWidth(fmt, P))
+    setBtBusy(true)
+    try {
+      await btPrint(receiptToEscpos(model, { cols, accents: !!P.btAccents, cut: !!P.btCut, feed: Number(P.btFeed) || 0 }), { pick })
+      app.notify('Reçu envoyé à l’imprimante ✓')
+    } catch (e) { app.notify(e?.message || 'Impression Bluetooth impossible.', 'error') } finally { setBtBusy(false) }
+  }
   const showProfit = app.can('finance.read')
   const pr = saleProfit(s, {}, app.costing, app.ref)
   const cancelled = s.status === 'annule'
@@ -375,6 +397,7 @@ export function SaleDetail() {
         </select>
         <button className="btn-ghost no-print" onClick={() => { setDoc('facture'); setTimeout(() => window.print(), 80) }}><Icon name="printer" size={16} />Facture</button>
         <button className="btn-primary no-print" onClick={() => { setDoc('recu'); setTimeout(() => window.print(), 80) }}><Icon name="printer" size={16} />Reçu</button>
+        {btSupported() && <button className="btn-gold no-print" disabled={btBusy} onClick={() => printBluetooth(false)} title="Imprimer directement sur une imprimante thermique Bluetooth (BLE)"><Icon name="printer" size={16} />{btBusy ? 'Envoi…' : 'Reçu Bluetooth'}</button>}
         <Link className="btn-ghost no-print" to={`/ventes/${s.id}/colis`}><Icon name="package" size={16} />Étiquette colis</Link>
         <a className="btn-gold no-print" target="_blank" rel="noopener noreferrer" aria-label="Envoyer par WhatsApp"
           href={waLink(app.D.customers.find((c) => c.id === s.customerId)?.phone, saleMessage(s, r, app.settings.company, 'facture'), app.settings.whatsappCC)}>WhatsApp</a>
@@ -407,7 +430,7 @@ export function SaleDetail() {
         </div>
       )}
 
-      <div className={'print-area card mb-4 ' + (thermal ? (fmt === 'ticket58' ? 'mx-auto max-w-[230px] !p-2 text-[11px] [&_table]:min-w-0 [&_.td]:px-0.5 [&_.td]:py-1 [&_.th]:px-0.5' : 'mx-auto max-w-[340px] !p-3 text-[13px] [&_table]:min-w-0 [&_.td]:px-1 [&_.td]:py-1.5 [&_.th]:px-1') : '')}>
+      <div className={'print-area card mb-4 ' + (thermal ? 'receipt-thermal ' : '') + (thermal ? (fmt === 'ticket58' ? 'mx-auto max-w-[230px] !p-2 text-[11px] [&_table]:min-w-0 [&_.td]:px-0.5 [&_.td]:py-1 [&_.th]:px-0.5' : 'mx-auto max-w-[340px] !p-3 text-[13px] [&_table]:min-w-0 [&_.td]:px-1 [&_.td]:py-1.5 [&_.th]:px-1') : '')}>
         <div className={'mb-4 border-b border-line pb-4 ' + (thermal ? 'text-center' : 'flex flex-wrap items-center justify-between gap-4')}>
           <div className={thermal ? 'flex flex-col items-center' : 'flex items-center gap-4'}>
             {rc.showLogo && <img src={receiptLogo(app.settings)} alt="" style={{ width: thermal ? Math.min(rc.logoWidth, 110) : rc.logoWidth, height: 'auto' }} />}
