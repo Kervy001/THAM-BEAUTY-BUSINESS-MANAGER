@@ -6,7 +6,7 @@ import { useWedgeScanner } from '../lib/wedge.js'
 import { scanBeep } from '../lib/alerts.js'
 import { LABEL_FORMATS, PAPER_TYPES, RECEIPT_FORMATS, SCAN_SPEEDS, SHEET_PRESETS, getPrintPrefs, setPrintPrefs, labelSize, labelOpts, labelPageCss, receiptCss, receiptWidth, sheetGrid } from '../lib/printing.js'
 import { LabelCell, LabelPages } from '../components/LabelSheet.jsx'
-import { btName, btPrint, btSupported } from '../lib/btprint.js'
+import { btName, btPrint, btSupported, btUnsupportedMsg } from '../lib/btprint.js'
 import { usbName, usbPrint, usbSupported } from '../lib/usbprint.js'
 import { colsFor, receiptToEscpos } from '../lib/escpos.js'
 import LabelTemplates from '../components/LabelTemplates.jsx'
@@ -166,7 +166,7 @@ export default function Hardware({ embedded = false }) {
         <div className="space-y-3 rounded-2xl bg-paper p-3 ring-1 ring-line">
           <div className="text-sm font-medium">Impression directe Bluetooth ou câble USB (imprimantes de tickets 58 / 80 mm)</div>
           <p className="text-xs text-neutral-600">Pour une imprimante Bluetooth qui n’apparaît pas dans la fenêtre d’impression, ou qui sort une feuille A4 avec un tout petit reçu : les boutons « Reçu Bluetooth » / « Reçu USB » (page d’une vente) envoient le reçu directement à l’imprimante, à sa vraie largeur. Fonctionne sur <b>Chrome Android, Chromebook et ordinateur</b> ; pas sur iPhone / iPad. Bluetooth : imprimante <b>BLE</b> seulement. USB : sous Windows, le pilote de l’imprimante bloque souvent cette méthode.</p>
-          {!btSupported() && !usbSupported() && <Notice tone="blue">Ce navigateur ne permet pas le Bluetooth direct (iPhone / Safari / Firefox). Utilisez Chrome sur Android, Chromebook ou ordinateur.</Notice>}
+          {!btSupported() && <Notice tone="blue">{btUnsupportedMsg()}</Notice>}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Field label="Caractères par ligne" hint={`Vide = automatique (${colsFor(recId, prefs.receiptW)}). 58 mm : 32 ; 80 mm : 48`}><NumIn value={prefs.btCols} min="20" max="64" step="1" onChange={(v) => set({ btCols: v })} /></Field>
             <Field label="Lignes vides à la fin"><NumIn value={prefs.btFeed} min="0" max="12" step="1" onChange={(v) => set({ btFeed: v })} /></Field>
@@ -175,11 +175,11 @@ export default function Hardware({ embedded = false }) {
           </div>
           <p className="text-xs text-neutral-500">Si les accents sortent mal (symboles bizarres), laissez « accents » décoché : le reçu s’imprime sans accents. </p>
           <div className="flex flex-wrap items-center gap-2">
-            <button className="btn-gold" disabled={btBusy || !btSupported()} onClick={() => btTest('bt')}><Icon name="printer" size={16} />{btBusy ? 'Envoi…' : 'Tester par Bluetooth'}</button>
-            <button className="btn-gold" disabled={btBusy || !usbSupported()} onClick={() => btTest('usb')}><Icon name="printer" size={16} />{btBusy ? 'Envoi…' : 'Tester par câble USB'}</button>
+            <button className="btn-gold" disabled={btBusy} onClick={() => btTest('bt')}><Icon name="printer" size={16} />{btBusy ? 'Envoi…' : 'Tester par Bluetooth'}</button>
+            <button className="btn-gold" disabled={btBusy} onClick={() => btTest('usb')}><Icon name="printer" size={16} />{btBusy ? 'Envoi…' : 'Tester par câble USB'}</button>
             {(btName() || usbName()) && <span className="text-xs text-emerald-700">Imprimante : {usbName() || btName()}</span>}
           </div>
-          <p className="text-xs text-neutral-500">Allumez l’imprimante (voyant bleu/vert), activez le Bluetooth du téléphone, puis choisissez-la dans la liste. Il n’est pas nécessaire de la « jumeler » dans les réglages du téléphone. Si elle n’apparaît pas ou affiche une erreur, elle utilise probablement le Bluetooth classique : utilisez alors son application ou la fenêtre d’impression.</p>
+          <p className="text-xs text-neutral-500">Allumez l’imprimante (voyant bleu/vert), activez le Bluetooth du téléphone, puis choisissez-la dans la liste. Il n’est pas nécessaire de la « jumeler » dans les réglages du téléphone. <b>Si elle n’apparaît pas dans la liste</b> du navigateur, elle utilise le Bluetooth classique (non visible par les navigateurs) : branchez-la par câble USB (bouton « USB »), ou utilisez son application / la fenêtre d’impression.</p>
         </div>
       </section>
 

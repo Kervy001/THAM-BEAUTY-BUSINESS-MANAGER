@@ -12,8 +12,8 @@ import Scanner from '../components/Scanner.jsx'
 import { useWedgeScanner, wedgeNotify } from '../lib/wedge.js'
 import { RECEIPT_FORMATS, getPrintPrefs, receiptCss, receiptWidth } from '../lib/printing.js'
 import { colsFor, receiptToEscpos } from '../lib/escpos.js'
-import { btPrint, btSupported } from '../lib/btprint.js'
-import { usbPrint, usbSupported } from '../lib/usbprint.js'
+import { btPrint } from '../lib/btprint.js'
+import { usbPrint } from '../lib/usbprint.js'
 import { reminderMessage, saleMessage, waLink } from '../lib/whatsapp.js'
 import { lookupCode, stockMatchesFor } from '../lib/codes.js'
 import { allocateForSale, bundleCandidates } from '../lib/bundles.js'
@@ -398,8 +398,8 @@ export function SaleDetail() {
         </select>
         <button className="btn-ghost no-print" onClick={() => { setDoc('facture'); setTimeout(() => window.print(), 80) }}><Icon name="printer" size={16} />Facture</button>
         <button className="btn-primary no-print" onClick={() => { setDoc('recu'); setTimeout(() => window.print(), 80) }}><Icon name="printer" size={16} />Reçu</button>
-        {btSupported() && <button className="btn-gold no-print" disabled={btBusy} onClick={() => printDirect('bt')} title="Imprimer directement sur une imprimante thermique Bluetooth (BLE)"><Icon name="printer" size={16} />{btBusy ? 'Envoi…' : 'Reçu Bluetooth'}</button>}
-        {usbSupported() && <button className="btn-gold no-print" disabled={btBusy} onClick={() => printDirect('usb')} title="Imprimer directement sur une imprimante thermique branchée en USB"><Icon name="printer" size={16} />{btBusy ? 'Envoi…' : 'Reçu USB'}</button>}
+        <button className="btn-gold no-print" disabled={btBusy} onClick={() => printDirect('bt')} title="Imprimer directement sur une imprimante thermique Bluetooth (BLE)"><Icon name="printer" size={16} />{btBusy ? 'Envoi…' : 'Reçu Bluetooth'}</button>
+        <button className="btn-gold no-print" disabled={btBusy} onClick={() => printDirect('usb')} title="Imprimer directement sur une imprimante thermique branchée en USB"><Icon name="printer" size={16} />{btBusy ? 'Envoi…' : 'Reçu USB'}</button>
         <Link className="btn-ghost no-print" to={`/ventes/${s.id}/colis`}><Icon name="package" size={16} />Étiquette colis</Link>
         <a className="btn-gold no-print" target="_blank" rel="noopener noreferrer" aria-label="Envoyer par WhatsApp"
           href={waLink(app.D.customers.find((c) => c.id === s.customerId)?.phone, saleMessage(s, r, app.settings.company, 'facture'), app.settings.whatsappCC)}>WhatsApp</a>
@@ -441,13 +441,13 @@ export function SaleDetail() {
           <div className={'whitespace-nowrap ' + (thermal ? 'mt-2 text-sm' : 'text-right text-sm')}><div className="font-display text-lg font-semibold">{doc === 'recu' ? 'Reçu de paiement' : 'Facture'}</div><div>{s.number}</div><div>{fdate(s.date)}</div></div>
         </div>
         <div className="mb-3 text-sm">Client : <b>{s.customerName}</b> <span className="text-neutral-500">· Vendeur : {sellerOf(s)}</span></div>
-        <Table head={['Article', 'Qté', 'Prix unit.', 'Réduction', 'Total']}>
+        <Table head={thermal ? ['Article', 'Qté × prix', ...(r.lines.some((p) => p.lineDisc + p.globalShare > 0) ? ['Réd.'] : []), 'Total'] : ['Article', 'Qté', 'Prix unit.', 'Réduction', 'Total']}>
           {r.lines.map((p) => (
             <tr key={p.l.id}>
               <td className="td">{p.l.label}{p.l.qtyReturned > 0 && <div className="text-xs text-red-600">retourné : {p.l.qtyReturned}</div>}</td>
-              <td className="td">{p.qty}</td><td className="td">{money(p.l.unitPrice, s.currency)}</td>
-              <td className="td">{p.lineDisc + p.globalShare > 0 ? '-' + money(p.lineDisc + p.globalShare, s.currency) : '—'}</td>
-              <td className="td">{money(p.net, s.currency)}</td>
+              {thermal ? <td className="td whitespace-nowrap">{p.qty} × {money(p.l.unitPrice, s.currency)}</td> : <><td className="td">{p.qty}</td><td className="td">{money(p.l.unitPrice, s.currency)}</td></>}
+              {(!thermal || r.lines.some((q) => q.lineDisc + q.globalShare > 0)) && <td className="td">{p.lineDisc + p.globalShare > 0 ? '-' + money(p.lineDisc + p.globalShare, s.currency) : '—'}</td>}
+              <td className="td whitespace-nowrap">{money(p.net, s.currency)}</td>
             </tr>
           ))}
         </Table>
