@@ -57,14 +57,23 @@ const DEFAULTS = {
   // scanner
   scanSound: true, scanGap: 35, scanMin: 4, scanPrefix: '', scanSuffix: 'auto'
 }
+// Formats par défaut de l'entreprise (Réglages → Logo & documents) : étiquettes produits et étiquette colis.
+// Un appareil ne les écrase que s'il a choisi lui-même un format (clé listée dans __fmt).
+let COMPANY = {}
+export const setCompanyPrint = (p) => { COMPANY = p || {} }
+const FMT_KEYS = { label: 'label', parcel: 'colis' }
 export function getPrintPrefs() {
-  try {
-    const raw = JSON.parse(localStorage.getItem(KEY) || '{}')
-    return { ...DEFAULTS, ...raw, custom: { ...DEFAULTS.custom, ...(raw.custom || {}) }, sheet: { ...DEFAULTS.sheet, ...(raw.sheet || {}) } }
-  } catch { return { ...DEFAULTS, custom: { ...DEFAULTS.custom }, sheet: { ...DEFAULTS.sheet } } }
+  let raw = {}
+  try { raw = JSON.parse(localStorage.getItem(KEY) || '{}') } catch { raw = {} }
+  const out = { ...DEFAULTS, ...raw, custom: { ...DEFAULTS.custom, ...(raw.custom || {}) }, sheet: { ...DEFAULTS.sheet, ...(raw.sheet || {}) } }
+  for (const [k, ck] of Object.entries(FMT_KEYS)) if (!(raw.__fmt || []).includes(k) && COMPANY[ck]) out[k] = COMPANY[ck]
+  return out
 }
 export function setPrintPrefs(patch) {
   const next = { ...getPrintPrefs(), ...patch }
+  let was = []
+  try { was = JSON.parse(localStorage.getItem(KEY) || '{}').__fmt || [] } catch { was = [] }
+  next.__fmt = [...new Set([...was, ...Object.keys(FMT_KEYS).filter((k) => k in patch)])]
   try { localStorage.setItem(KEY, JSON.stringify(next)) } catch { /* stockage indisponible */ }
   return next
 }

@@ -1,6 +1,7 @@
+import { setCompanyPrint } from './printing.js'
 import { createContext, useContext, useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { onAuthStateChanged, signOut, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth'
-import { collection, doc, onSnapshot, setDoc, deleteDoc, writeBatch, where, deleteField, arrayUnion, runTransaction, serverTimestamp, query, orderBy, limit, addDoc, getDocs } from 'firebase/firestore'
+import { collection, doc, onSnapshot, setDoc, deleteDoc, writeBatch, where, deleteField, arrayUnion, runTransaction, serverTimestamp, query, orderBy, limit, addDoc } from 'firebase/firestore'
 import { auth, db, isConfigured } from './firebase.js'
 import { beep, systemNotify } from './alerts.js'
 import { can } from './perms.js'
@@ -19,6 +20,7 @@ export const DEFAULT_SETTINGS = {
   lowStock: 3,
   company: { name: 'THAM BEAUTY', phone: '', address: 'Haïti', footer: 'Merci pour votre confiance !' },
   receipt: { showLogo: true, logoWidth: 90, format: 'a4' },
+  print: { facture: 'a4', recu: '', colis: '', label: '' }, // format par défaut pour chaque type de document ('' = automatique)
   logo: '',
   expenseCategories: DEFAULT_EXPENSE_CATEGORIES,
   locations: [{ id: 'main', name: 'Boutique principale' }], // boutiques / dépôts (le stock par lieu n'apparaît que s'il y en a plusieurs)
@@ -30,6 +32,7 @@ const mergeSettings = (d) => ({
   ...DEFAULT_SETTINGS, ...d,
   company: { ...DEFAULT_SETTINGS.company, ...(d?.company || {}) },
   receipt: { ...DEFAULT_SETTINGS.receipt, ...(d?.receipt || {}) },
+  print: { ...DEFAULT_SETTINGS.print, ...(d?.print || {}) },
   security: { ...DEFAULT_SETTINGS.security, ...(d?.security || {}) },
   commission: { ...DEFAULT_SETTINGS.commission, ...(d?.commission || {}) },
   locations: d?.locations?.length ? d.locations : DEFAULT_SETTINGS.locations
@@ -47,7 +50,6 @@ export function AppProvider({ children }) {
   const [authUser, setAuthUser] = useState(undefined)
   const [profile, setProfile] = useState(undefined) // undefined = chargement, null = aucun profil
   const [settings, setSettings] = useState(null)
-  const [settingsReady, setSettingsReady] = useState(false) // true dès que les réglages ont été lus (évite les pages vides au démarrage)
   const [data, setData] = useState({})
   const [audit, setAudit] = useState([])
   const [online, setOnline] = useState(navigator.onLine)
@@ -74,36 +76,16 @@ export function AppProvider({ children }) {
     return onAuthStateChanged(auth, (u) => setAuthUser(u))
   }, [])
 
-  // Profil de l'utilisateur connecté.
-  // - Gardé sur l'appareil : au retour dans l'app, on affiche tout de suite (sans écran « Chargement » interminable).
-  // - Une erreur passagère (réseau coupé, jeton en renouvellement) ne déconnecte plus : on garde le profil et on réessaie.
+  // Profil de l'utilisateur connecté
   useEffect(() => {
-    if (!authUser) { setProfile(authUser === null ? null : undefined); if (authUser === null) { setSettings(null); setSettingsReady(false) } return }
-    let dead = false, tries = 0, timer, unsub
-    const cacheKey = `tb-profile-${authUser.uid}`
-    try { const c = JSON.parse(localStorage.getItem(cacheKey) || 'null'); if (c && c.role) setProfile(c) } catch { /* pas de cache */ }
-    const start = () => {
-      unsub = onSnapshot(doc(db, 'users', authUser.uid),
-        (s) => {
-          tries = 0
-          if (s.exists()) {
-            const p = { id: s.id, ...s.data() }
-            setProfile(p)
-            try { localStorage.setItem(cacheKey, JSON.stringify(p)) } catch { /* stockage indisponible */ }
-          } else if (!s.metadata.fromCache) {
-            setProfile(null)
-            try { localStorage.removeItem(cacheKey) } catch { /* rien */ }
-          } // sinon : pas encore de réponse du serveur, on attend
-        },
-        () => {
-          unsub?.()
-          if (dead) return
-          if (tries++ < 6) timer = setTimeout(start, 1500 * tries)
-          else setProfile((p) => (p === undefined ? null : p))
-        })
-    }
-    start()
-    return () => { dead = true; clearTimeout(timer); unsub?.() }
+    if (!authUser) { setProfile(authUser === null ? null : undefined); return }
+    return onSnapshot(doc(db, 'users', authUser.uid),
+      (s) => {
+        if (s.exists()) setProfile({ id: s.id, ...s.data() })
+        else if (s.metadata.fromCache) setProfile(undefined) // pas encore de réponse du serveur : on attend
+        else setProfile(null)
+      },
+      () => setProfile(null))
   }, [authUser])
 
   const active = !!profile && profile.active !== false
@@ -125,27 +107,23 @@ export function AppProvider({ children }) {
       },
       () => setData((d) => ({ ...d, [c]: [] }))))
     unsubs.push(onSnapshot(doc(db, 'settings', 'main'), { includeMetadataChanges: true },
-      (s) => {
-        if (!s.exists() && s.metadata.fromCache) return // pas encore de réponse du serveur
-        setSettings(s.exists() ? mergeSettings(s.data()) : null); setSettingsReady(true); track('settings', s)
-      }, () => setSettingsReady(true)))
+      (s) => { setSettings(s.exists() ? mergeSettings(s.data()) : null); track('settings', s) }, () => {}))
     CORE.forEach(listen)
     const t = setTimeout(() => {
       LATER.forEach(listen)
-      if (profile.role === 'admin') { listen('fundMoves'); listen('partnerMoves') } // fonds de réinvestissement : administrateur seulement
-      if (can(profile, 'bundles.write')) listen('bundles') // boîtes (vente en gros) : seulement pour qui en a le droit
       // Clôtures de caisse : tout le monde voit les siennes ; l'admin / la finance voient toutes
       const allClosings = profile.role === 'admin' || can(profile, 'finance.read')
       unsubs.push(onSnapshot(allClosings ? collection(db, 'cashClosings') : query(collection(db, 'cashClosings'), where('userId', '==', authUser?.uid || '')),
         (snap) => setData((d) => ({ ...d, cashClosings: snap.docs.map((x) => ({ id: x.id, ...x.data() })) })), () => setData((d) => ({ ...d, cashClosings: [] }))))
       if (can(profile, 'finance.read') || profile.role === 'admin') {
-        unsubs.push(onSnapshot(query(collection(db, 'audit'), orderBy('at', 'desc'), limit(600)),
+        unsubs.push(onSnapshot(query(collection(db, 'audit'), orderBy('at', 'desc'), limit(200)),
           (snap) => setAudit(snap.docs.map((x) => ({ id: x.id, ...x.data() }))), () => {}))
       }
     }, 1200)
     return () => { clearTimeout(t); unsubs.forEach((u) => u()) }
   }, [active, profile?.role])
 
+  setCompanyPrint(settings?.print)
   const locations = settings?.locations?.length ? settings.locations : DEFAULT_SETTINGS.locations
   const hasPending = Object.values(pending).some(Boolean)
   useEffect(() => {
@@ -180,7 +158,7 @@ export function AppProvider({ children }) {
     return {
       products: data.products || [], suppliers: data.suppliers || [], customers: data.customers || [],
       projects: allProjects.filter((p) => !p.deletedAt), expenses, sales,
-      bundles: data.bundles || [], fundMoves: data.fundMoves || [], partnerMoves: data.partnerMoves || [], users: data.users || [], inventories: data.inventories || [], cashClosings: data.cashClosings || [], rateHistory: [...(data.rateHistory || [])].sort((a, b) => (b.at || '').localeCompare(a.at || '')),
+      users: data.users || [], inventories: data.inventories || [], cashClosings: data.cashClosings || [], rateHistory: [...(data.rateHistory || [])].sort((a, b) => (b.at || '').localeCompare(a.at || '')),
       trash: { projects: trashProjects, sales: trashedSales, items: trashItems },
       deleteRequests: sales.filter((s) => s.deleteRequest?.status === 'pending')
     }
@@ -293,7 +271,7 @@ export function AppProvider({ children }) {
   }, [save, authUser, profile])
 
   // ---------- Sauvegarde / restauration (administrateur) ----------
-  const BACKUP_COLS = ['products', 'suppliers', 'customers', 'projects', 'expenses', 'sales', 'rateHistory', 'inventories', 'cashClosings', 'bundles', 'fundMoves', 'partnerMoves']
+  const BACKUP_COLS = ['products', 'suppliers', 'customers', 'projects', 'expenses', 'sales', 'rateHistory', 'inventories', 'cashClosings']
   const stripTs = ({ _ts, ...rest }) => rest
   const exportAll = useCallback(() => {
     const d = dataRef.current
@@ -305,7 +283,7 @@ export function AppProvider({ children }) {
     if (json?.app !== 'tham-beauty' || !json.collections) throw new Error('Ce fichier n’est pas une sauvegarde THAM BEAUTY.')
     if (!navigator.onLine) throw new Error('Connexion Internet requise pour restaurer.')
     const ops = []
-    BACKUP_COLS.forEach((c) => (json.collections[c] || []).forEach(({ id, ...rest }) => { if (typeof id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(id) && rest && typeof rest === 'object') ops.push({ ref: doc(db, c, id), data: { ...rest, _ts: serverTimestamp() } }) }))
+    BACKUP_COLS.forEach((c) => (json.collections[c] || []).forEach(({ id, ...rest }) => { if (id) ops.push({ ref: doc(db, c, id), data: { ...rest, _ts: serverTimestamp() } }) }))
     for (let i = 0; i < ops.length; i += 400) {
       const b = writeBatch(db)
       ops.slice(i, i + 400).forEach((o) => b.set(o.ref, o.data))
@@ -316,68 +294,10 @@ export function AppProvider({ children }) {
     return ops.length
   }, [logAudit])
 
-  // Copies de sauvegarde dans Firebase (collections backups + backupParts) : on garde les 4 dernières.
-  const CHUNK = 300000
-  const cloudBackup = useCallback(async (auto = false) => {
-    if (!navigator.onLine) throw new Error('Connexion Internet requise.')
-    const json = JSON.stringify(exportAll())
-    const parts = []
-    for (let i = 0; i < json.length; i += CHUNK) parts.push(json.slice(i, i + CHUNK))
-    const id = 'b' + Date.now().toString(36)
-    const at = nowIso()
-    const counts = {}
-    BACKUP_COLS.forEach((c) => { counts[c] = (dataRef.current[c] || []).length })
-    for (let i = 0; i < parts.length; i += 3) {
-      const b = writeBatch(db)
-      parts.slice(i, i + 3).forEach((data, k) => b.set(doc(db, 'backupParts', `${id}_${i + k}`), { b: id, i: i + k, data }))
-      await b.commit()
-    }
-    await setDoc(doc(db, 'backups', id), { at, by: profile?.name || '', auto, parts: parts.length, size: json.length, counts })
-    await setDoc(doc(db, 'settings', 'main'), { backup: { lastAt: at, lastAuto: auto } }, { merge: true })
-    // ne garder que les 4 dernières copies
-    const snap = await getDocs(query(collection(db, 'backups'), orderBy('at', 'desc')))
-    for (const old of snap.docs.slice(4)) {
-      const n = old.data().parts || 0
-      const b = writeBatch(db)
-      for (let k = 0; k < n; k++) b.delete(doc(db, 'backupParts', `${old.id}_${k}`))
-      b.delete(old.ref)
-      await b.commit()
-    }
-    logAudit(auto ? 'sauvegarde automatique' : 'sauvegarde dans Firebase', 'settings', 'main', `${(json.length / 1024).toFixed(0)} Ko`)
-    return id
-  }, [exportAll, profile, logAudit]) // eslint-disable-line react-hooks/exhaustive-deps
-  const listCloudBackups = useCallback(async () => {
-    const snap = await getDocs(query(collection(db, 'backups'), orderBy('at', 'desc')))
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
-  }, [])
-  const loadCloudBackup = useCallback(async (b) => {
-    const snap = await getDocs(query(collection(db, 'backupParts'), where('b', '==', b.id)))
-    const parts = snap.docs.map((d) => d.data()).sort((x, y) => x.i - y.i)
-    if (parts.length !== b.parts) throw new Error('Copie incomplète.')
-    return JSON.parse(parts.map((p) => p.data).join(''))
-  }, [])
-  // Sauvegarde automatique : une fois par semaine, quand l'administrateur ouvre l'application (connexion + données chargées)
-  const autoBackedUp = useRef(false)
-  useEffect(() => {
-    if (profile?.role !== 'admin' || !online || autoBackedUp.current || !settings || !data.sales || !data.projects || !data.customers) return
-    if (settings.backup?.auto === false) return
-    const last = settings.backup?.lastAt ? Date.parse(settings.backup.lastAt) : 0
-    if (Date.now() - last < 7 * 864e5) return
-    autoBackedUp.current = true
-    const t = setTimeout(() => { cloudBackup(true).then(() => notify('Sauvegarde automatique faite ✓')).catch(() => { autoBackedUp.current = false }) }, 12000)
-    return () => clearTimeout(t)
-  }, [profile?.role, online, settings, data.sales, data.projects, data.customers, cloudBackup, notify])
-
   // ---------- Corbeille, suppression de projets et de ventes ----------
   const isAdmin = profile?.role === 'admin'
   const dataRef = useRef(data)
   dataRef.current = data
-
-  // Suppression définitive d'une dépense (administrateur seulement ; mot de passe demandé dans l'interface)
-  const removeExpense = useCallback(async (x, reason = '') => {
-    await write(deleteDoc(doc(db, 'expenses', x.id)))
-    logAudit('dépense supprimée', 'expenses', x.id, `${x.number || ''} ${x.category || ''} ${x.amount} ${x.currency}${reason ? ' — ' + reason : ''}`.trim())
-  }, [write, logAudit])
 
   // Vérifie le mot de passe de l'administrateur connecté (Internet requis)
   const verifyPassword = useCallback(async (pw) => {
@@ -486,11 +406,11 @@ export function AppProvider({ children }) {
   }, [isAdmin, online, data.projects, data.sales, purgeProject, purgeSale, purgeItems])
 
   const value = {
-    authUser, profile, active, settings: settings || DEFAULT_SETTINGS, settingsExists: !!settings, settingsReady, ref, rate, online, hasPending, toasts,
+    authUser, profile, active, settings, ref, rate, online, hasPending, toasts,
     D, costing, audit, save, saveSettings, write, notify, logAudit, nextNumber, isAdmin,
-    verifyPassword, removeExpense, exportAll, restoreAll, cloudBackup, listCloudBackups, loadCloudBackup, locations, multiLoc: locations.length > 1, notifs, unreadNotifs, markNotifsSeen, pushSaleNotification, trashProject, restoreProject, purgeProject, trashItems, restoreItems, purgeItems, requestSaleDeletion, refuseSaleDeletion, trashSale, restoreSale, purgeSale,
+    verifyPassword, exportAll, restoreAll, locations, multiLoc: locations.length > 1, notifs, unreadNotifs, markNotifsSeen, pushSaleNotification, trashProject, restoreProject, purgeProject, trashItems, restoreItems, purgeItems, requestSaleDeletion, refuseSaleDeletion, trashSale, restoreSale, purgeSale,
     can: (p) => can(profile, p),
-    logout: () => { try { localStorage.removeItem(`tb-profile-${authUser?.uid}`) } catch { /* rien */ } return signOut(auth) }
+    logout: () => signOut(auth)
   }
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

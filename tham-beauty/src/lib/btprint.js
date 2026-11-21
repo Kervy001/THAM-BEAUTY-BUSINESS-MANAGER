@@ -42,7 +42,7 @@ async function connect(pick) {
 }
 
 // bytes : Uint8Array ESC/POS. pick=true force le choix d'une imprimante (fenêtre Bluetooth du navigateur).
-export async function btPrint(bytes, { pick = false, chunk = 20, delay = 25 } = {}) {
+export async function btPrint(bytes, { pick = false, chunk = 100, delay = 15 } = {}) {
   let c
   try { c = await connect(pick) } catch (e) {
     if (e && e.name === 'NotFoundError') throw new Error('Aucune imprimante choisie.')
@@ -50,10 +50,18 @@ export async function btPrint(bytes, { pick = false, chunk = 20, delay = 25 } = 
   }
   const noResp = !!c.properties.writeWithoutResponse
   try {
-    for (let i = 0; i < bytes.length; i += chunk) {
-      const part = bytes.slice(i, i + chunk)
-      if (noResp) await c.writeValueWithoutResponse(part)
-      else await c.writeValue(part)
+    // gros blocs d'abord (rapide, utile pour le logo) ; si l'imprimante refuse, on repasse à 20 octets
+    let size = chunk
+    for (let i = 0; i < bytes.length;) {
+      const part = bytes.slice(i, i + size)
+      try {
+        if (noResp) await c.writeValueWithoutResponse(part)
+        else await c.writeValue(part)
+      } catch (err) {
+        if (size > 20) { size = 20; continue }
+        throw err
+      }
+      i += part.length
       if (delay) await new Promise((r) => setTimeout(r, delay))
     }
   } catch (e) {

@@ -1,7 +1,7 @@
 // Construction d'un reçu en commandes ESC/POS (imprimantes thermiques 58 mm / 80 mm) — fonction pure, sans navigateur.
 // model = { company:{name,address,phone}, docTitle, number, date, customer, seller,
 //           lines:[{label, qty, unit, total, disc, returned}], totals:[[label, value, bold?]], payments:[string], note, footer }
-// opts  = { cols (32 pour 58 mm, 48 pour 80 mm), accents (CP858), feed (lignes vides à la fin), cut }
+// opts  = { cols (32 pour 58 mm, 48 pour 80 mm), accents (CP858), feed (lignes vides à la fin), cut, logo (Uint8Array GS v 0) }
 
 const ESC = 0x1b, GS = 0x1d, LF = 0x0a
 // Table CP858 (page de codes 19 d'Epson) pour les lettres françaises usuelles
@@ -61,6 +61,7 @@ export function receiptToEscpos(m, o = {}) {
   raw(ESC, 0x40) // initialisation
   if (accents) raw(ESC, 0x74, 19) // page de codes CP858
   align(1)
+  if (o.logo && o.logo.length) { for (let i = 0; i < o.logo.length; i++) b.push(o.logo[i]); line('') } // logo (image raster déjà convertie)
   const co = m.company || {}
   size(0x11); bold(true)
   for (const r of wrap(co.name || 'THAM BEAUTY', Math.floor(cols / 2))) line(r)
