@@ -149,7 +149,7 @@ export default function Inventory() {
             <details key={h.id} className="card !p-3">
               <summary className="flex cursor-pointer items-center justify-between gap-3 text-sm">
                 <span><b>{h.date}</b> — {h.locationName || 'Stock'} · {h.by}<span className="block text-xs text-neutral-500">{h.counted} compté(s) · {h.withDiff} écart(s) · manquant {h.missingQty} · en plus {h.extraQty}</span></span>
-                {h.lossValue > 0 && app.can('finance.read') && <span className="shrink-0 font-semibold text-blush-600">−{money(h.lossValue, h.refCurrency)}</span>}
+                {h.lossValue > 0 && app.can('costs.read') && <span className="shrink-0 font-semibold text-blush-600">−{money(h.lossValue, h.refCurrency)}</span>}
               </summary>
               <div className="mt-2 divide-y divide-line/70 text-sm">
                 {(h.rows || []).filter((x) => x.diff !== 0).map((x, i) => <div key={i} className="flex justify-between gap-3 py-1.5"><span>{x.label}</span><span className="shrink-0">{x.expected} → {x.counted} <b className={x.diff < 0 ? 'text-blush-600' : 'text-emerald-700'}>({x.diff > 0 ? '+' : ''}{x.diff})</b></span></div>)}
@@ -171,7 +171,7 @@ export default function Inventory() {
                 {withDiff.map((r) => <div key={r.key} className="flex justify-between gap-3 px-3 py-2"><span>{r.label}</span><span className="shrink-0">{r.expected} → {counts[r.key]} <b className={diffOf(r) < 0 ? 'text-blush-600' : 'text-emerald-700'}>({diffOf(r) > 0 ? '+' : ''}{diffOf(r)})</b></span></div>)}
               </div>
             )}
-            {lossPreview > 0 && app.can('finance.read') && <Notice tone="red">Valeur du manquant (au coût) : {money(lossPreview, app.ref)}</Notice>}
+            {lossPreview > 0 && app.can('costs.read') && <Notice tone="red">Valeur du manquant (au coût) : {money(lossPreview, app.ref)}</Notice>}
             {err && <Notice tone="red">{err}</Notice>}
             <div className="flex gap-2"><button className="btn-ghost flex-1" onClick={() => setReview(false)}>Annuler</button><button className="btn-gold flex-1" disabled={busy} onClick={apply}>{busy ? '…' : 'Corriger le stock'}</button></div>
           </div>

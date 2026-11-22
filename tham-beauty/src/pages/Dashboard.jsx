@@ -171,7 +171,7 @@ function DashboardInner({ hidden, toggle }) {
           <Row label="Articles disponibles" value={m.available} />
           <Row label="En rupture" value={m.outOfStock} tone={m.outOfStock ? 'bad' : undefined} />
           <Row label="Stock faible" value={m.lowStock} />
-          {fin && <MoneyRow strong label="Valeur du stock" v={m.stockValue} cur={r} />}
+          {app.can("costs.read") && <MoneyRow strong label="Valeur du stock" v={m.stockValue} cur={r} />}
         </Ledger>
 
         <Ledger title="Activité">

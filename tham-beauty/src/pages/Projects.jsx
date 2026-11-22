@@ -18,7 +18,7 @@ export function Projects() {
   const [modal, setModal] = useState(false)
   const [status, setStatus] = useState('')
   const canEdit = app.can('projects.write')
-  const showMoney = app.can('finance.read') || canEdit
+  const showMoney = app.can('costs.read') || app.can('finance.read') || canEdit
 
   const rows = useMemo(() => app.D.projects
     .filter((p) => !status || p.status === status)
@@ -156,7 +156,7 @@ export function ProjectDetail() {
   const stats = projectStats(p, app.D.sales, costing, app.ref, app.rate)
   const expenses = app.D.expenses.filter((e) => e.projectId === p.id)
   const hist = (text) => ({ history: arrayUnion({ at: nowIso(), by: app.profile?.name || '', text }) })
-  const showMoney = app.can('finance.read') || canEdit
+  const showMoney = app.can('costs.read') || app.can('finance.read') || canEdit
 
   async function setStatus(s) {
     await app.save('projects', p.id, { status: s, ...hist(`Statut → ${STATUS_PROJECT[s]}`) }, 'statut projet')
@@ -294,7 +294,7 @@ function ItemsTab({ p, costing, stats, canEdit, hist }) {
   const app = useApp()
   const [edit, setEdit] = useState(null)
   const items = p.items || []
-  const showMoney = app.can('finance.read') || canEdit
+  const showMoney = app.can('costs.read') || app.can('finance.read') || canEdit
 
   async function saveItem(e) {
     e.preventDefault()

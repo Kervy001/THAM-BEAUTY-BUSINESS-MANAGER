@@ -31,7 +31,7 @@ export default function Stock() {
   useEffect(() => { if (addId) setEntry(true) }, [addId])
   const closeEntry = () => { setEntry(false); if (addId) setParams({}, { replace: true }) }
   const isAdmin = app.isAdmin
-  const showMoney = app.can('finance.read')
+  const showMoney = app.can('costs.read')
   const canAdd = app.can('stock.write') || app.can('projects.write')
   const canSell = app.can('sales.write')
   const low = app.settings.lowStock ?? 3

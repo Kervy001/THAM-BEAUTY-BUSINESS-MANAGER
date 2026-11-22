@@ -6,8 +6,9 @@ import { useWedgeScanner } from '../lib/wedge.js'
 import { scanBeep } from '../lib/alerts.js'
 import { LABEL_FORMATS, PAPER_TYPES, RECEIPT_FORMATS, SCAN_SPEEDS, SHEET_PRESETS, getPrintPrefs, setPrintPrefs, labelSize, labelOpts, labelPageCss, receiptCss, receiptWidth, sheetGrid } from '../lib/printing.js'
 import { LabelCell, LabelPages } from '../components/LabelSheet.jsx'
-import { btName, btPrint, btSupported, btUnsupportedMsg } from '../lib/btprint.js'
-import { usbName, usbPrint, usbSupported } from '../lib/usbprint.js'
+import { btName, btSupported, btUnsupportedMsg } from '../lib/btprint.js'
+import { usbName } from '../lib/usbprint.js'
+import { METHODS, capabilities, chooseMethod, friendlyError, methodAvailable, recommendation, sendDirect, shareReceipt } from '../lib/printer.js'
 import { colsFor, receiptToEscpos } from '../lib/escpos.js'
 import { logoDots, logoRaster } from '../lib/escposLogo.js'
 import { receiptLogo } from '../components/Logo.jsx'
@@ -48,17 +49,23 @@ export default function Hardware({ embedded = false }) {
     setTimeout(() => { window.print(); setTimeout(() => { st.remove(); document.body.classList.remove('print-test-label', 'print-test-receipt'); delete document.body.dataset.testKind }, 800) }, 200)
   }
   const [btBusy, setBtBusy] = useState(false)
+  const [testErr, setTestErr] = useState('')
+  const caps = capabilities()
+  const reco = recommendation(caps)
+  const chosen = chooseMethod(prefs, caps)
   async function btTest(kind = 'bt') {
-    setBtBusy(true)
+    setBtBusy(true); setTestErr('')
     try {
       const model = { company: { name: app.settings.company?.name || 'THAM BEAUTY', address: app.settings.company?.address, phone: app.settings.company?.phone }, docTitle: 'Test impression', number: 'Bluetooth OK', date: new Date().toLocaleDateString('fr-FR'), customer: 'Client test', seller: '', lines: [{ label: 'Produit exemple avec un nom un peu long', qty: 2, unit: '12,50 $', total: '25,00 $' }], totals: [['Net', '25,00 $'], ['Solde', '0,00 $', true]], payments: [], footer: 'Merci ! Accents : é è à ç ô' }
       const cols = Number(prefs.btCols) || colsFor(recId, prefs.receiptW)
       let logo
       const rcs = app.settings.receipt || {}
       if (rcs.showLogo) { try { logo = await logoRaster(receiptLogo(app.settings), { widthDots: logoDots(cols, rcs.logoWidth) }) } catch { app.notify('Logo non imprimé (image illisible).', 'error') } }
-      await (kind === 'usb' ? usbPrint : btPrint)(receiptToEscpos(model, { cols, accents: !!prefs.btAccents, cut: !!prefs.btCut, feed: Number(prefs.btFeed) || 0, logo }), { pick: true })
-      app.notify('Test envoyé à l’imprimante ✓')
-    } catch (e) { app.notify(e?.message || 'Impression Bluetooth impossible.', 'error') } finally { setBtBusy(false) }
+      if (kind === 'share') { await shareReceipt(model, { cols, logoUrl: rcs.showLogo ? receiptLogo(app.settings) : '' }) }
+      else await sendDirect(kind, receiptToEscpos(model, { cols, accents: !!prefs.btAccents, cut: !!prefs.btCut, feed: Number(prefs.btFeed) || 0, logo }), { pick: true })
+      if (kind !== 'share') set({ lastOk: kind })
+      app.notify(kind === 'rawbt' ? 'Test envoyé à RawBT ✓' : 'Test envoyé ✓')
+    } catch (e) { if (e?.name !== 'AbortError') setTestErr(friendlyError(kind, e)) } finally { setBtBusy(false) }
   }
   const demo = { name: 'THAM BEAUTY', label: 'Test impression', code: 'TB123456', price: 12.5, cur: 'USD', key: 'demo' }
   const show = { barcode: true, qr: true, price: true }
@@ -169,7 +176,21 @@ export default function Hardware({ embedded = false }) {
         <button className="btn-ghost" onClick={() => printTest('receipt')}><Icon name="printer" size={16} />Imprimer un reçu test</button>
 
         <div className="space-y-3 rounded-2xl bg-paper p-3 ring-1 ring-line">
-          <div className="text-sm font-medium">Impression directe Bluetooth ou câble USB (imprimantes de tickets 58 / 80 mm)</div>
+          <div className="text-sm font-medium">Assistant d’impression du reçu (imprimantes de tickets 58 / 80 mm)</div>
+          <div className="rounded-xl bg-white p-3 text-sm ring-1 ring-line">
+            <div className="font-medium">{reco.title}</div>
+            <ul className="mt-1 list-disc space-y-1 pl-5 text-xs text-neutral-600">{reco.lines.map((l, i) => <li key={i}>{l}</li>)}</ul>
+            <div className="mt-2 flex flex-wrap gap-1 text-xs">
+              {[['USB direct', caps.usb], ['Bluetooth direct', caps.bt], ['RawBT', caps.rawbt], ['Partage image', caps.share]].map(([n, ok]) => <span key={n} className={'rounded-full px-2 py-0.5 ' + (ok ? 'bg-emerald-100 text-emerald-800' : 'bg-neutral-100 text-neutral-500')}>{ok ? '✓' : '✗'} {n}</span>)}
+            </div>
+          </div>
+          <label className="block text-sm">Mode d’impression du reçu sur cet appareil
+            <select className="input mt-1" value={prefs.printMethod || 'auto'} onChange={(e) => set({ printMethod: e.target.value })}>
+              {Object.entries(METHODS).filter(([k]) => methodAvailable(k, caps)).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+            <span className="text-xs text-neutral-500">Actuellement utilisé : <b>{METHODS[chosen]}</b>{(btName() || usbName()) ? ` · imprimante : ${usbName() || btName()}` : ''}</span>
+          </label>
+          {testErr && <Notice tone="red">{testErr}</Notice>}
           <p className="text-xs text-neutral-600">Pour une imprimante Bluetooth qui n’apparaît pas dans la fenêtre d’impression, ou qui sort une feuille A4 avec un tout petit reçu : les boutons « Reçu Bluetooth » / « Reçu USB » (page d’une vente) envoient le reçu directement à l’imprimante, à sa vraie largeur. Fonctionne sur <b>Chrome Android, Chromebook et ordinateur</b> ; pas sur iPhone / iPad. Bluetooth : imprimante <b>BLE</b> seulement. USB : sous Windows, le pilote de l’imprimante bloque souvent cette méthode.</p>
           {!btSupported() && <Notice tone="blue">{btUnsupportedMsg()}</Notice>}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -180,8 +201,11 @@ export default function Hardware({ embedded = false }) {
           </div>
           <p className="text-xs text-neutral-500">Si les accents sortent mal (symboles bizarres), laissez « accents » décoché : le reçu s’imprime sans accents. </p>
           <div className="flex flex-wrap items-center gap-2">
-            <button className="btn-gold" disabled={btBusy} onClick={() => btTest('bt')}><Icon name="printer" size={16} />{btBusy ? 'Envoi…' : 'Tester par Bluetooth'}</button>
-            <button className="btn-gold" disabled={btBusy} onClick={() => btTest('usb')}><Icon name="printer" size={16} />{btBusy ? 'Envoi…' : 'Tester par câble USB'}</button>
+            {caps.bt && <button className="btn-gold" disabled={btBusy} onClick={() => btTest('bt')}><Icon name="printer" size={16} />{btBusy ? 'Envoi…' : 'Tester par Bluetooth'}</button>}
+            {caps.usb && <button className="btn-gold" disabled={btBusy} onClick={() => btTest('usb')}><Icon name="printer" size={16} />{btBusy ? 'Envoi…' : 'Tester par câble USB'}</button>}
+            {caps.rawbt && <button className="btn-gold" disabled={btBusy} onClick={() => btTest('rawbt')}><Icon name="printer" size={16} />Tester avec RawBT</button>}
+            {caps.share && <button className="btn-ghost" disabled={btBusy} onClick={() => btTest('share')}>Tester : partager en image</button>}
+            <button className="btn-ghost" onClick={() => printTest('receipt')}>Tester : fenêtre d’impression</button>
             {(btName() || usbName()) && <span className="text-xs text-emerald-700">Imprimante : {usbName() || btName()}</span>}
           </div>
           <p className="text-xs text-neutral-500">Allumez l’imprimante (voyant bleu/vert), activez le Bluetooth du téléphone, puis choisissez-la dans la liste. Il n’est pas nécessaire de la « jumeler » dans les réglages du téléphone. <b>Si elle n’apparaît pas dans la liste</b> du navigateur, elle utilise le Bluetooth classique (non visible par les navigateurs) : branchez-la par câble USB (bouton « USB »), ou utilisez son application / la fenêtre d’impression.</p>

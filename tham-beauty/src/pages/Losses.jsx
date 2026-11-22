@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { arrayUnion } from 'firebase/firestore'
 import { useApp } from '../lib/store.jsx'
-import { round2 } from '../lib/calc.js'
+import { itemStockAt, round2 } from '../lib/calc.js'
 import { bundleCandidates } from '../lib/bundles.js'
 import { fdate, nowIso, today, uid } from '../lib/util.js'
 import { Badge, Empty, Input, Modal, Notice, NumberInput, PageHeader, Select, Table, useMoney } from '../components/ui.jsx'
@@ -17,12 +17,13 @@ export default function Losses() {
   const [reason, setReason] = useState('')
   const rows = useMemo(() => {
     const out = []
-    ;(app.D.projects || []).forEach((p) => (p.items || []).forEach((it) => (it.adjustments || []).filter((a) => a.kind === 'loss').forEach((a) => {
+    const mineIds = app.myLocations.map((l) => l.id)
+    ;(app.D.projects || []).forEach((p) => (p.items || []).forEach((it) => (it.adjustments || []).filter((a) => a.kind === 'loss' && (!app.restrictedLocs || mineIds.includes(a.locationId || it.locationId || app.locations[0].id))).forEach((a) => {
       const unit = Number(a.unitCostRef) || app.costing?.[p.id]?.perItem?.[it.id]?.unitCostRef || 0
       out.push({ ...a, pid: p.id, projectNumber: p.number, itemLabel: it.label, value: round2(-Number(a.qty) * unit) })
     })))
     return out.sort((a, b) => String(b.date || b.at).localeCompare(String(a.date || a.at)))
-  }, [app.D.projects, app.costing])
+  }, [app.D.projects, app.costing, app.myLocations, app.restrictedLocs, app.locations])
   const valid = rows.filter((r) => !r.cancelled)
   const total = valid.reduce((t, r) => t + r.value, 0)
   const byReason = {}
@@ -74,26 +75,29 @@ function LossModal({ onClose }) {
   const app = useApp()
   const ref = app.ref
   const cands = useMemo(() => Object.values(bundleCandidates(app.D, app.costing, { currency: ref, rate: app.rate, ref })).sort((a, b) => a.label.localeCompare(b.label)), [app.D, app.costing, ref, app.rate])
-  const [f, setF] = useState({ itemId: '', qty: '1', reason: LOSS_REASONS[0], note: '', date: today(), q: '' })
+  const [f, setF] = useState({ itemId: '', qty: '1', reason: LOSS_REASONS[0], note: '', date: today(), q: '', locationId: app.defaultLoc })
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
   const set = (k) => (v) => setF((x) => ({ ...x, [k]: v }))
   const c = cands.find((x) => x.itemId === f.itemId)
   const shown = cands.filter((x) => !f.q || `${x.label} ${x.sku}`.toLowerCase().includes(f.q.toLowerCase())).slice(0, 60)
   const qty = Math.floor(Number(f.qty) || 0)
+  // Stock disponible dans le magasin choisi (la perte sort du stock de CE magasin)
+  const itc = c ? app.D.projects.find((x) => x.id === c.projectId)?.items?.find((i) => i.id === c.itemId) : null
+  const avail = c ? (app.multiLoc && itc ? itemStockAt(itc, app.D.stockSales, f.locationId, app.locations[0].id) : c.remaining) : 0
 
   async function submit(e) {
     e.preventDefault()
     setErr('')
     if (!c) return setErr('Choisissez un article.')
     if (qty < 1) return setErr('Entrez une quantité.')
-    if (qty > c.remaining) return setErr(`Stock insuffisant : ${c.remaining} disponible.`)
+    if (qty > avail) return setErr(`Stock insuffisant : ${avail} disponible${app.multiLoc ? ' dans ce magasin' : ''}.`)
     const p = app.D.projects.find((x) => x.id === c.projectId)
     if (!p) return
     setBusy(true)
     try {
       const at = nowIso(), by = app.profile?.name || ''
-      const adj = { id: uid(), kind: 'loss', qty: -qty, reason: f.reason, note: f.note.trim(), date: f.date, at, by, unitCostRef: round2(c.unitCost) }
+      const adj = { id: uid(), kind: 'loss', qty: -qty, reason: f.reason, note: f.note.trim(), date: f.date, at, by, unitCostRef: round2(c.unitCost), ...(app.multiLoc ? { locationId: f.locationId } : {}) }
       const items = (p.items || []).map((it) => (it.id === c.itemId ? { ...it, adjustments: [...(it.adjustments || []), adj] } : it))
       await app.save('projects', p.id, { items, history: arrayUnion({ at, by, text: `Perte de stock : ${c.label} ×${qty} (${f.reason})` }) }, `perte de stock : ${c.label} ×${qty} (${f.reason})`)
       onClose()
@@ -104,6 +108,8 @@ function LossModal({ onClose }) {
       <form onSubmit={submit} className="space-y-3">
         <Input label="Chercher un article" value={f.q} onChange={(e) => set('q')(e.target.value)} placeholder="nom ou code" />
         <Select label="Article (en stock)" value={f.itemId} onChange={set('itemId')} options={[{ value: '', label: 'Choisir…' }, ...shown.map((x) => ({ value: x.itemId, label: `${x.label} — ${x.projectNumber} (${x.remaining} en stock)` }))]} />
+        {app.multiLoc && <Select label="Magasin concerné" value={f.locationId} onChange={set('locationId')} disabled={app.myLocations.length < 2} options={app.myLocations.map((l) => ({ value: l.id, label: l.name }))} />}
+        {c && app.multiLoc && <div className="text-xs text-neutral-500">Disponible dans ce magasin : <b>{avail}</b></div>}
         <div className="grid grid-cols-2 gap-3">
           <NumberInput label="Quantité perdue" value={f.qty} onChange={set('qty')} />
           <Input label="Date" type="date" value={f.date} onChange={(e) => set('date')(e.target.value)} />

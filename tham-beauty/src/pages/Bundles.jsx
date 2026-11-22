@@ -16,7 +16,7 @@ const pctTone = (p, min) => (p < 0 ? 'bad' : p < min ? undefined : 'good')
 // ---------- Liste des boîtes ----------
 export function Bundles() {
   const app = useApp()
-  const showCost = app.can('finance.read')
+  const showCost = app.can('costs.read')
   const [q, setQ] = useState('')
   const [st, setSt] = useState('')
   const rows = useMemo(() => app.D.bundles
@@ -67,7 +67,7 @@ export function BundleEditor() {
   const { id } = useParams()
   const isNew = id === 'nouvelle'
   const existing = isNew ? null : app.D.bundles.find((b) => b.id === id)
-  const showCost = app.can('finance.read')
+  const showCost = app.can('costs.read')
   const sold = existing?.status === 'vendu'
   const [f, setF] = useState({ name: '', customerId: '', customerName: '', currency: 'USD', price: '', status: 'brouillon', notes: '', minMargin: '30' })
   const [lines, setLines] = useState([])

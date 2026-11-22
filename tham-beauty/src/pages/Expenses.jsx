@@ -37,7 +37,7 @@ export function ExpenseModal({ projectId, expense, onClose }) {
       }
       const number = await app.nextNumber('DEP')
       const rec = { ...e, funding, number, amount: Number(e.amount), rate: Number(e.rate), convertedRef: converted, refCurrency: app.ref, status: 'valide', kind: e.projectId ? 'projet' : 'general', global: !!(e.projectId && e.global) }
-      if (!(app.multiLoc && !e.projectId)) delete rec.locationId
+      if (e.projectId) delete rec.locationId
       const id = await app.save('expenses', null, rec, 'dépense')
       if (e.projectId) {
         await app.save('projects', e.projectId, { history: arrayUnion({ at: nowIso(), by: app.profile?.name || '', text: `Dépense ${number} : ${e.category} ${e.amount} ${e.currency} (taux ${e.rate})` }) })

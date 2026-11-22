@@ -4,7 +4,7 @@ import { createUserWithEmailAndPassword } from 'firebase/auth'
 import { deleteField, doc, setDoc } from 'firebase/firestore'
 import { db, withSecondaryAuth } from '../lib/firebase.js'
 import { useApp } from '../lib/store.jsx'
-import { PERMS, ROLES, rolesOf } from '../lib/perms.js'
+import { PERMS, ROLES, effectivePerms, rolesOf } from '../lib/perms.js'
 import { fdt, nowIso, today, uid as newId } from '../lib/util.js'
 import { LOCK_CHOICES } from '../lib/security.js'
 import { Badge, Empty, Input, Modal, Notice, NumberInput, PageHeader, PasswordConfirm, Select, Table, Tabs, Textarea } from '../components/ui.jsx'
@@ -14,8 +14,8 @@ import { LABEL_FORMATS, RECEIPT_FORMATS } from '../lib/printing.js'
 
 export default function Admin() {
   const app = useApp()
-  const [tab, setTab] = useState(app.can('users.manage') ? 'Utilisateurs' : 'Réglages')
-  const tabs = [...(app.can('users.manage') ? ['Utilisateurs'] : []), ...(app.can('settings.manage') ? ['Rôles'] : []), ...(app.can('settings.manage') ? ['Réglages'] : []), ...(app.isAdmin ? ['Sauvegarde'] : []), 'Matériel', 'Historique']
+  const [tab, setTab] = useState(app.isAdmin ? 'Utilisateurs' : 'Réglages')
+  const tabs = [...(app.isAdmin ? ['Utilisateurs'] : []), ...(app.isAdmin ? ['Rôles'] : []), ...(app.can('settings.manage') ? ['Réglages'] : []), ...(app.isAdmin ? ['Sauvegarde'] : []), 'Matériel', 'Historique']
   return (
     <>
       <PageHeader title="Utilisateurs & réglages" />
@@ -23,7 +23,7 @@ export default function Admin() {
       {tab === 'Utilisateurs' && <Users />}
       {tab === 'Rôles' && <RolesTab />}
       {tab === 'Réglages' && <Settings />}
-      {tab === 'Sauvegarde' && app.isAdmin && <Backup />}
+      {tab === 'Sauvegarde' && app.isAdmin && <><Isolation /><Backup /></>}
       {tab === 'Matériel' && <Hardware embedded />}
       {tab === 'Historique' && <Audit />}
     </>
@@ -93,7 +93,7 @@ function RolesTab() {
             <Input label="Nom du rôle" value={edit.label} maxLength={40} onChange={(e) => setEdit({ ...edit, label: e.target.value })} placeholder="ex. Vendeur en gros" required />
             <div className="rounded-lg border p-3">
               <div className="mb-2 flex items-center justify-between text-sm font-medium"><span>Autorisations</span><span className="text-xs font-normal text-neutral-500">{edit.perms.length} / {Object.keys(PERMS).length}</span></div>
-              <div className="grid gap-1 sm:grid-cols-2">{Object.entries(PERMS).map(([k, l]) => <label key={k} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={edit.perms.includes(k)} onChange={() => togglePerm(k)} />{l}</label>)}</div>
+              <div className="grid gap-1 sm:grid-cols-2">{Object.entries(PERMS).filter(([k]) => k !== 'users.manage').map(([k, l]) => <label key={k} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={edit.perms.includes(k)} onChange={() => togglePerm(k)} />{l}</label>)}</div>
             </div>
             {err && <div className="text-sm text-red-600">{err}</div>}
             <button className="btn-primary w-full" disabled={busy}>{busy ? '…' : 'Enregistrer le rôle'}</button>
@@ -116,18 +116,29 @@ function Users() {
     setErr('')
     if (app.multiLoc && edit.role !== 'admin' && !edit.perms.includes('locations.all') && !(edit.locationIds || []).length && (!edit.id || !edit.locationId)) return setErr('Choisissez au moins un magasin pour cet utilisateur (ou donnez-lui « Voir tous les magasins »).')
     if (!edit.id && !navigator.onLine) return setErr('Connexion Internet requise pour créer un utilisateur.')
+    const mail = (edit.email || '').trim().toLowerCase()
+    // Une adresse e-mail = un seul compte (aussi dans la liste de l'application, pas seulement dans Firebase)
+    if (!edit.id && app.D.users.some((u) => (u.email || '').trim().toLowerCase() === mail)) return setErr('Cette adresse e-mail a déjà un compte dans la liste ci-dessus.')
+    // Rôle administrateur : réservé aux administrateurs, et il doit toujours rester au moins un administrateur actif
+    if (edit.role === 'admin' && !app.isAdmin) return setErr('Seul un administrateur peut créer ou garder un administrateur.')
+    if (edit.id) {
+      const before = app.D.users.find((u) => u.id === edit.id)
+      const othersAdmins = app.D.users.filter((u) => u.id !== edit.id && u.role === 'admin' && u.active !== false).length
+      if (before?.role === 'admin' && (edit.role !== 'admin' || edit.active === false) && othersAdmins < 1) return setErr('Il doit toujours rester au moins un administrateur actif.')
+      if (edit.id === app.authUser.uid && before?.role === 'admin' && edit.role !== 'admin') return setErr('Vous ne pouvez pas retirer votre propre rôle d’administrateur.')
+    }
     setBusy(true)
     try {
       if (edit.id) {
-        await app.write(setDoc(doc(db, 'users', edit.id), { name: edit.name, role: edit.role, perms: edit.perms, active: edit.active !== false, locationId: edit.locationIds?.[0] || edit.locationId || '', locationIds: edit.locationIds || [], updatedAt: nowIso() }, { merge: true }))
+        await app.write(setDoc(doc(db, 'users', edit.id), { name: edit.name, role: edit.role, perms: edit.perms, permsV2: true, active: edit.active !== false, locationId: edit.locationIds?.[0] || edit.locationId || '', locationIds: edit.locationIds || [], updatedAt: nowIso() }, { merge: true }))
         app.logAudit('modification utilisateur', 'users', edit.id, edit.email)
       } else {
-        const uidNew = await withSecondaryAuth(async (a2) => (await createUserWithEmailAndPassword(a2, edit.email.trim(), edit.password)).user.uid)
-        await app.write(setDoc(doc(db, 'users', uidNew), { name: edit.name, email: edit.email.trim(), role: edit.role, perms: edit.perms, active: true, locationId: edit.locationIds?.[0] || '', locationIds: edit.locationIds || [], createdAt: nowIso(), createdBy: app.profile.name }))
+        const uidNew = await withSecondaryAuth(async (a2) => (await createUserWithEmailAndPassword(a2, edit.email.trim().toLowerCase(), edit.password)).user.uid)
+        await app.write(setDoc(doc(db, 'users', uidNew), { name: edit.name, email: edit.email.trim().toLowerCase(), role: edit.role, perms: edit.perms, permsV2: true, active: true, locationId: edit.locationIds?.[0] || '', locationIds: edit.locationIds || [], createdAt: nowIso(), createdBy: app.profile.name }))
         app.logAudit('création utilisateur', 'users', uidNew, edit.email)
       }
       setEdit(null)
-    } catch (ex) { setErr(ex.code === 'auth/email-already-in-use' ? 'Adresse déjà utilisée.' : ex.code === 'auth/weak-password' ? 'Mot de passe trop court (8 caractères minimum).' : ex.message) } finally { setBusy(false) }
+    } catch (ex) { setErr(ex.code === 'auth/email-already-in-use' ? 'Adresse déjà utilisée (un compte existe déjà avec cet e-mail, même s’il n’apparaît pas dans la liste : supprimez-le dans Firebase → Authentication, ou utilisez une autre adresse).' : ex.code === 'auth/weak-password' ? 'Mot de passe trop court (8 caractères minimum).' : ex.message) } finally { setBusy(false) }
   }
   const togglePerm = (k) => setEdit({ ...edit, perms: edit.perms.includes(k) ? edit.perms.filter((x) => x !== k) : [...edit.perms, k] })
   const setRole = (role) => setEdit({ ...edit, role, perms: [...(roles[role]?.perms || [])] })
@@ -140,7 +151,7 @@ function Users() {
           {app.D.users.map((u) => (
             <tr key={u.id}><td className="td font-medium">{u.name}</td><td className="td">{u.email}</td><td className="td">{roles[u.role]?.label || ROLES[u.role]?.label || u.role}</td>
               <td className="td">{u.active === false ? <Badge tone="red">Désactivé</Badge> : <Badge tone="green">Actif</Badge>}</td>
-              <td className="td"><button className="btn-ghost btn-sm" onClick={() => setEdit({ ...u, perms: u.perms || [] })}>Modifier</button></td></tr>
+              <td className="td"><button className="btn-ghost btn-sm" onClick={() => setEdit({ ...u, perms: u.permsV2 || u.role === 'admin' ? u.perms || [] : effectivePerms(u) })}>Modifier</button></td></tr>
           ))}
         </Table>
       </div>
@@ -169,7 +180,7 @@ function Users() {
               </div>
             )}
             <div className="rounded-lg border p-3"><div className="mb-2 text-sm font-medium">Autorisations (modifiables)</div>
-              <div className="grid gap-1 sm:grid-cols-2">{Object.entries(PERMS).map(([k, l]) => <label key={k} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={edit.role === 'admin' || edit.perms.includes(k)} disabled={edit.role === 'admin'} onChange={() => togglePerm(k)} />{l}</label>)}</div></div>
+              <div className="grid gap-1 sm:grid-cols-2">{Object.entries(PERMS).filter(([k]) => k !== 'users.manage').map(([k, l]) => <label key={k} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={edit.role === 'admin' || edit.perms.includes(k)} disabled={edit.role === 'admin'} onChange={() => togglePerm(k)} />{l}</label>)}</div></div>
             {err && <div className="text-sm text-red-600">{err}</div>}
             <button className="btn-primary w-full" disabled={busy}>{busy ? '…' : 'Enregistrer'}</button>
           </form>
@@ -318,6 +329,31 @@ function Audit() {
     <div className="card !p-2"><Table head={['Date', 'Utilisateur', 'Action', 'Détail']}>
       {app.audit.map((a) => <tr key={a.id}><td className="td whitespace-nowrap">{fdt(a.at)}</td><td className="td">{a.userName}</td><td className="td">{a.action}</td><td className="td text-xs text-neutral-500">{a.entity} {a.detail}</td></tr>)}
     </Table></div>
+  )
+}
+
+// Isolation des magasins côté serveur : à activer une fois, après avoir mis à jour tous les appareils
+function Isolation() {
+  const app = useApp()
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+  const on = app.settings?.locMigrated === true
+  const todo = app.countUnstamped()
+  async function run() {
+    if (!window.confirm('Activer l’isolation des magasins ? Chaque ancienne vente / dépense / inventaire sans magasin sera rattaché au premier magasin. Faites-le après avoir mis à jour l’application sur tous les appareils.')) return
+    setBusy(true); setMsg('')
+    try { const n = await app.stampLocations(); setMsg(`Isolation activée ✓ (${n} ancien(s) enregistrement(s) rattaché(s) au premier magasin).`) } catch (ex) { setMsg(ex.message) }
+    setBusy(false)
+  }
+  return (
+    <div className="card mb-4 space-y-2">
+      <div className="font-display text-base font-semibold">Isolation des magasins (sécurité côté serveur)</div>
+      <p className="text-sm text-neutral-600">Quand elle est active, un utilisateur limité à certains magasins ne reçoit que les ventes, dépenses et inventaires de ses magasins : les données des autres magasins ne lui sont même pas envoyées.</p>
+      <div className="text-sm">État : {on ? <Badge tone="green">Active</Badge> : <Badge tone="amber">Pas encore activée</Badge>} · enregistrements sans magasin : <b>{todo}</b></div>
+      <button className="btn-gold" disabled={busy || (on && todo === 0)} onClick={run}>{busy ? '…' : on ? 'Rattacher les enregistrements restants' : 'Activer l’isolation'}</button>
+      {on && <button className="btn-ghost btn-sm" disabled={busy} onClick={async () => { if (window.confirm('Désactiver l’isolation côté serveur (retour arrière) ?')) { setBusy(true); await app.saveSettings({ locMigrated: false }, 'isolation des magasins désactivée'); setBusy(false) } }}>Désactiver (retour arrière)</button>}
+      {msg && <div className="text-sm text-emerald-700">{msg}</div>}
+    </div>
   )
 }
 

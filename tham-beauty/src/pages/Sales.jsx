@@ -11,11 +11,10 @@ import CustomerPicker from '../components/CustomerPicker.jsx'
 import PaymentModal from '../components/PaymentModal.jsx'
 import Scanner from '../components/Scanner.jsx'
 import { useWedgeScanner, wedgeNotify } from '../lib/wedge.js'
-import { RECEIPT_FORMATS, getPrintPrefs, receiptCss, receiptWidth } from '../lib/printing.js'
+import { RECEIPT_FORMATS, getPrintPrefs, receiptCss, receiptWidth, setPrintPrefs } from '../lib/printing.js'
 import { logoDots, logoRaster } from '../lib/escposLogo.js'
+import { OS_LABEL, capabilities, chooseMethod, friendlyError, sendDirect, shareReceipt } from '../lib/printer.js'
 import { colsFor, receiptToEscpos } from '../lib/escpos.js'
-import { btPrint } from '../lib/btprint.js'
-import { usbPrint } from '../lib/usbprint.js'
 import { reminderMessage, saleMessage, waLink } from '../lib/whatsapp.js'
 import { lookupCode, stockMatchesFor } from '../lib/codes.js'
 import { allocateForSale, bundleCandidates } from '../lib/bundles.js'
@@ -104,7 +103,7 @@ export function NewSale() {
 
   const draft = { currency: f.currency, rate: Number(f.rate), globalDiscount: { type: f.globalType, value: app.can('discount.global') ? Number(f.globalValue) || 0 : 0 }, lines: lines.map((l) => ({ ...l, qty: Number(l.qty) || 0, unitPrice: Number(l.unitPrice) || 0, discount: { type: l.dType, value: Number(l.dValue) || 0 } })) }
   const t = saleTotals(draft)
-  const showCost = app.can('finance.read')
+  const showCost = app.can('costs.read')
 
   // Prix de gros d'une ligne (défini sur la variante du produit), converti dans la devise de la vente
   function wholesaleOf(l) {
@@ -202,7 +201,7 @@ export function NewSale() {
       const sale = {
         number, date: f.date, createdAtIso: nowIso(), customerId: f.customerId, customerName: cust?.name || f.customerName || 'Client de passage',
         currency: f.currency, rate: Number(f.rate), delivery: f.delivery, notes: f.notes, status: 'valide',
-        ...(app.multiLoc ? { locationId: f.locationId } : {}),
+        locationId: f.locationId || app.defaultLoc,
         sellerId: app.authUser?.uid || '', sellerName: app.profile?.name || '',
         globalDiscount: { type: f.globalType, value: app.can('discount.global') ? Number(f.globalValue) || 0 : 0 },
         lines: draft.lines.map((l) => ({
@@ -326,6 +325,7 @@ export function SaleDetail() {
   const nav = useNavigate()
   const [doc, setDoc] = useState('facture')
   const [btBusy, setBtBusy] = useState(false)
+  const [printFail, setPrintFail] = useState(null)
   // Format par défaut selon le document (Réglages → Logo & documents) ; le réglage propre à l'appareil (Matériel) passe devant pour le reçu
   const docFormat = (d) => (d === 'recu' ? getPrintPrefs().receipt || app.settings?.print?.recu || app.settings?.receipt?.format || 'a4' : app.settings?.print?.facture || 'a4')
   const manualFmt = useRef(false)
@@ -360,9 +360,14 @@ export function SaleDetail() {
   const r = saleSummary(s)
   const canPay = app.can('sales.pay')
   // Impression directe du reçu sur une imprimante thermique (ESC/POS) par Bluetooth ou câble USB, sans passer par la fenêtre d'impression
-  async function printDirect(kind) {
+  // Impression intelligente du reçu : choisit le meilleur mode pour cet appareil, et propose des solutions si ça échoue
+  async function printSmart(force, pick = false) {
     if (btBusy) return
     const P = getPrintPrefs()
+    const caps = capabilities()
+    const method = force || chooseMethod(P, caps)
+    setPrintFail(null)
+    if (method === 'dialog') { showDoc('recu'); printSoon(); return }
     const m = (x) => money(x, s.currency)
     const model = {
       company: { name: co.name, address: co.address, phone: co.phone }, docTitle: 'Reçu de paiement', number: s.number, date: fdate(s.date), customer: s.customerName, seller: sellerOf(s),
@@ -374,13 +379,22 @@ export function SaleDetail() {
     const cols = Number(P.btCols) || colsFor(fmt === 'a4' ? 'ticket58' : fmt, receiptWidth(fmt, P))
     setBtBusy(true)
     try {
-      let logo
-      if (rc.showLogo) {
-        try { logo = await logoRaster(receiptLogo(app.settings), { widthDots: logoDots(cols, rc.logoWidth) }) } catch { app.notify('Logo non imprimé (image illisible).', 'error') }
+      if (method === 'share') {
+        const how = await shareReceipt(model, { cols, logoUrl: rc.showLogo ? receiptLogo(app.settings) : '' })
+        setPrintPrefs({ lastOk: 'share' })
+        app.notify(how === 'partagé' ? 'Reçu partagé ✓' : 'Image du reçu téléchargée ✓')
+      } else {
+        let logo
+        if (rc.showLogo) {
+          try { logo = await logoRaster(receiptLogo(app.settings), { widthDots: logoDots(cols, rc.logoWidth) }) } catch { app.notify('Logo non imprimé (image illisible).', 'error') }
+        }
+        await sendDirect(method, receiptToEscpos(model, { cols, accents: !!P.btAccents, cut: !!P.btCut, feed: Number(P.btFeed) || 0, logo }), { pick })
+        setPrintPrefs({ lastOk: method })
+        app.notify(method === 'rawbt' ? 'Reçu envoyé à RawBT ✓ (si rien ne sort : installez RawBT et associez l’imprimante)' : 'Reçu envoyé à l’imprimante ✓')
       }
-      await (kind === 'usb' ? usbPrint : btPrint)(receiptToEscpos(model, { cols, accents: !!P.btAccents, cut: !!P.btCut, feed: Number(P.btFeed) || 0, logo }), { pick: false })
-      app.notify('Reçu envoyé à l’imprimante ✓')
-    } catch (e) { app.notify(e?.message || 'Impression Bluetooth impossible.', 'error') } finally { setBtBusy(false) }
+    } catch (e) {
+      if (e?.name === 'AbortError') { /* partage annulé : rien à signaler */ } else setPrintFail({ method, msg: friendlyError(method, e), caps })
+    } finally { setBtBusy(false) }
   }
   const showProfit = app.can('finance.read')
   const pr = saleProfit(s, {}, app.costing, app.ref)
@@ -413,13 +427,35 @@ export function SaleDetail() {
           {RECEIPT_FORMATS.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
         </select>
         <button className="btn-ghost no-print" onClick={() => { showDoc('facture'); printSoon() }}><Icon name="printer" size={16} />Facture</button>
-        <button className="btn-primary no-print" onClick={() => { showDoc('recu'); printSoon() }}><Icon name="printer" size={16} />Reçu</button>
-        <button className="btn-gold no-print" disabled={btBusy} onClick={() => printDirect('bt')} title="Imprimer directement sur une imprimante thermique Bluetooth (BLE)"><Icon name="printer" size={16} />{btBusy ? 'Envoi…' : 'Reçu Bluetooth'}</button>
-        <button className="btn-gold no-print" disabled={btBusy} onClick={() => printDirect('usb')} title="Imprimer directement sur une imprimante thermique branchée en USB"><Icon name="printer" size={16} />{btBusy ? 'Envoi…' : 'Reçu USB'}</button>
+        <button className="btn-primary no-print" disabled={btBusy} onClick={() => printSmart()}><Icon name="printer" size={16} />{btBusy ? 'Envoi…' : 'Imprimer le reçu'}</button>
+        <details className="no-print relative">
+          <summary className="btn-ghost cursor-pointer list-none">Autres modes ▾</summary>
+          <div className="absolute right-0 z-30 mt-1 flex w-60 flex-col gap-1 rounded-xl border bg-white p-2 shadow-lg dark:bg-neutral-900">
+            <button className="btn-ghost btn-sm justify-start" onClick={() => printSmart('dialog')}>Fenêtre d’impression</button>
+            <button className="btn-ghost btn-sm justify-start" onClick={() => printSmart('usb', true)}>Câble USB (choisir l’imprimante)</button>
+            <button className="btn-ghost btn-sm justify-start" onClick={() => printSmart('bt', true)}>Bluetooth (choisir l’imprimante)</button>
+            <button className="btn-ghost btn-sm justify-start" onClick={() => printSmart('rawbt')}>RawBT (Android)</button>
+            <button className="btn-ghost btn-sm justify-start" onClick={() => printSmart('share')}>Partager en image</button>
+          </div>
+        </details>
         <Link className="btn-ghost no-print" to={`/ventes/${s.id}/colis`}><Icon name="package" size={16} />Étiquette colis</Link>
         <a className="btn-gold no-print" target="_blank" rel="noopener noreferrer" aria-label="Envoyer par WhatsApp"
           href={waLink(app.D.customers.find((c) => c.id === s.customerId)?.phone, saleMessage(s, r, app.settings.company, 'facture'), app.settings.whatsappCC)}>WhatsApp</a>
       </PageHeader>
+      {printFail && (
+        <div className="no-print mb-3"><Notice tone="red">
+          <div className="font-medium">L’impression n’a pas abouti ({printFail.caps ? OS_LABEL[printFail.caps.os] : ''})</div>
+          <div className="mb-2 text-sm">{printFail.msg}</div>
+          <div className="flex flex-wrap gap-2">
+            {(printFail.method === 'usb' || printFail.method === 'bt') && <button className="btn-gold btn-sm" onClick={() => printSmart(printFail.method, true)}>Choisir l’imprimante et réessayer</button>}
+            {printFail.caps?.usb && printFail.method !== 'usb' && <button className="btn-ghost btn-sm" onClick={() => printSmart('usb', true)}>Essayer par USB</button>}
+            {printFail.caps?.bt && printFail.method !== 'bt' && <button className="btn-ghost btn-sm" onClick={() => printSmart('bt', true)}>Essayer par Bluetooth</button>}
+            {printFail.caps?.rawbt && printFail.method !== 'rawbt' && <button className="btn-ghost btn-sm" onClick={() => printSmart('rawbt')}>Essayer avec RawBT</button>}
+            <button className="btn-ghost btn-sm" onClick={() => printSmart('share')}>Partager en image</button>
+            <button className="btn-ghost btn-sm" onClick={() => printSmart('dialog')}>Fenêtre d’impression</button>
+          </div>
+        </Notice></div>
+      )}
       {cancelled && <div className="no-print mb-3"><Notice tone="red">Vente annulée le {fdate(s.cancelledAt)} — {s.cancelReason}</Notice></div>}
       {dr?.status === 'pending' && (
         <div className="no-print mb-3"><Notice tone="amber">

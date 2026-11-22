@@ -13,7 +13,7 @@ const sign = (p) => (p.type === 'refund' ? -1 : 1)
 // comparé à ce qu'il compte réellement. Les écarts apparaissent en rouge pour l'administrateur.
 export default function Cash() {
   const app = useApp()
-  const seeAll = app.isAdmin || app.can('finance.read')
+  const seeAll = app.isAdmin || (app.can('finance.read') && !app.restrictedLocs)
   const [date, setDate] = useState(today())
   const people = useMemo(() => {
     const m = new Map()
@@ -53,7 +53,7 @@ export default function Cash() {
     try {
       const c = { USD: Number(counted.USD) || 0, HTG: Number(counted.HTG) || 0 }
       await app.save('cashClosings', `${date}_${person.id}`, {
-        date, userId: person.id, userName: person.name, expected: day.cash, counted: c, diff: { USD: c.USD - day.cash.USD, HTG: c.HTG - day.cash.HTG },
+        date, locationId: app.defaultLoc, userId: person.id, userName: person.name, expected: day.cash, counted: c, diff: { USD: c.USD - day.cash.USD, HTG: c.HTG - day.cash.HTG },
         nonCash: day.other, salesCount: day.sales, salesNet: Math.round(day.net * 100) / 100, refCurrency: app.ref, note: note.trim(), closedAt: nowIso(), closedBy: app.profile?.name || ''
       }, 'clôture de caisse')
       app.notify('Caisse clôturée ✓')
