@@ -1,5 +1,5 @@
 import { partnerPeriodTotals } from './partners.js'
-import { convert, inRange, itemStock, projectStats, purchaseSummary, saleSummary, saleProfit, saleTotals, salePayments } from './calc.js'
+import { convert, inRange, itemStock, stockInLocs, touchesLocs, projectStats, purchaseSummary, saleSummary, saleProfit, saleTotals, salePayments } from './calc.js'
 
 // Calcule tous les indicateurs à partir des données réelles. f = { range, projectId, customerId, supplierId, productId, currency }
 export function computeMetrics({ D, costing, ref, rate, settings }, f) {
@@ -71,7 +71,12 @@ export function computeMetrics({ D, costing, ref, rate, settings }, f) {
     if (!['archive', 'termine'].includes(p.status)) forecast += st.forecastProfitRef
     ;(p.items || []).forEach((it) => {
       if (f.productId && it.productId !== f.productId) return
-      const s = itemStock(it, D.stockSales || D.sales)
+      const SS = D.stockSales || D.sales
+      const s = itemStock(it, SS)
+      if (D.locIds) { // utilisateur limité à certains magasins : seulement le stock de ses magasins
+        if (!touchesLocs(it, SS, D.locIds, D.firstLoc)) return
+        s.remaining = stockInLocs(it, SS, D.locIds, D.firstLoc)
+      }
       if (s.received <= 0) return
       refs++
       available += s.remaining

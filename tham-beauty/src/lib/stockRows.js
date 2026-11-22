@@ -1,4 +1,4 @@
-import { itemStock, itemStockAt } from './calc.js'
+import { itemStock, itemStockAt, stockInLocs, touchesLocs } from './calc.js'
 
 // Lignes de stock groupées par produit / variante (même regroupement que la page Stock).
 // locId : stock d'un lieu précis (inventaire) ; sans locId : stock total.
@@ -9,7 +9,8 @@ export function stockRows(D, costing, locId, firstLoc) {
     const st = itemStock(it, SS)
     if (st.received <= 0 && st.sold <= 0) return
     const key = `${it.productId || ''}|${it.variantId || ''}|${it.productId ? '' : it.label}`
-    const q = locId ? itemStockAt(it, SS, locId, firstLoc) : st.remaining
+    if (!locId && D.locIds && !touchesLocs(it, SS, D.locIds, D.firstLoc)) return
+    const q = locId ? itemStockAt(it, SS, locId, firstLoc) : D.locIds ? stockInLocs(it, SS, D.locIds, D.firstLoc) : st.remaining
     const c = costing?.[p.id]?.perItem?.[it.id]?.unitCostRef || 0
     const r = (g[key] ||= { key, label: it.label, sku: it.sku || '', productId: it.productId || '', variantId: it.variantId || '', expected: 0, value: 0, lots: [] })
     r.lots.push({ pid: p.id, itemId: it.id, number: p.number, expected: q, unitCost: c })

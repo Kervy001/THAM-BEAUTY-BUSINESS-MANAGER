@@ -268,6 +268,16 @@ export function itemStockAt(item, sales, locId, firstLoc = 'main') {
   return q
 }
 
+// Stock d'un article réparti sur plusieurs lieux (utilisateur limité à certains magasins)
+export const stockInLocs = (item, sales, locIds, firstLoc = 'main') => locIds.reduce((t, id) => t + itemStockAt(item, sales, id, firstLoc), 0)
+// L'article a-t-il un lien avec ces lieux (reçu, ajusté, transféré, ou stock non nul) ?
+export function touchesLocs(item, sales, locIds, firstLoc = 'main') {
+  if (locIds.includes(item.locationId || firstLoc)) return true
+  if ((item.transfers || []).some((t) => locIds.includes(t.to) || locIds.includes(t.from))) return true
+  if ((item.adjustments || []).some((a) => locIds.includes(a.locationId || item.locationId || firstLoc))) return true
+  return stockInLocs(item, sales, locIds, firstLoc) !== 0
+}
+
 // Commission d'un vendeur selon les réglages (taux en % du CA net ou du bénéfice)
 export function commissionOf(cfg, ca, profit) {
   if (!cfg?.enabled) return 0

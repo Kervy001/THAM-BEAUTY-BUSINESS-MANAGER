@@ -26,7 +26,7 @@ function enc(str, accents) {
   }
   return out
 }
-function wrap(text, cols) {
+export function wrap(text, cols) {
   const words = clean(text, true).split(' ').filter(Boolean)
   const rows = []
   let cur = ''

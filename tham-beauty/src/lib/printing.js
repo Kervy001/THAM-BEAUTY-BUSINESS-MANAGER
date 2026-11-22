@@ -53,7 +53,7 @@ const DEFAULTS = {
   // reçus
   receipt: '', receiptW: 72, receiptMargin: 2, receiptFont: 100, autoReceipt: false,
   // impression directe Bluetooth (ESC/POS) : colonnes ('' = selon le format), accents (CP858), coupe, lignes vides à la fin
-  btCols: '', btAccents: false, btCut: false, btFeed: 3,
+  btCols: '', btAccents: false, btCut: false, btFeed: 3, printMethod: 'auto', lastOk: '',
   // scanner
   scanSound: true, scanGap: 35, scanMin: 4, scanPrefix: '', scanSuffix: 'auto'
 }

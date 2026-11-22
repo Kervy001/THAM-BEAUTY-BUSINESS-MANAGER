@@ -110,6 +110,17 @@ export function AppProvider({ children }) {
   }, [authUser])
 
   const active = !!profile && profile.active !== false
+  // Utilisateur limité à certains magasins : il ne charge que les ventes / dépenses / inventaires de ses magasins
+  // (filtre côté serveur, une fois l'administrateur a « préparé l'isolation » dans Réglages → settings.locMigrated).
+  const SCOPED = ['sales', 'expenses', 'inventories']
+  const scopeIds = (() => {
+    if (!profile || profile.role === 'admin' || can(profile, 'locations.all')) return null
+    const ids = profile.locationIds?.length ? profile.locationIds : profile.locationId ? [profile.locationId] : []
+    return ids.length ? ids : null
+  })()
+  const scopeKey = scopeIds ? scopeIds.join(',') : ''
+  const scoped = !!scopeIds
+  const migrated = settings?.locMigrated === true
 
   // Abonnements aux données (avec suivi des écritures en attente de synchronisation)
   const loaded = useRef({})
@@ -132,13 +143,13 @@ export function AppProvider({ children }) {
         if (!s.exists() && s.metadata.fromCache) return // pas encore de réponse du serveur
         setSettings(s.exists() ? mergeSettings(s.data()) : null); setSettingsReady(true); track('settings', s)
       }, () => setSettingsReady(true)))
-    CORE.forEach(listen)
+    CORE.filter((c) => !(scoped && SCOPED.includes(c))).forEach(listen)
     const t = setTimeout(() => {
-      LATER.forEach(listen)
+      LATER.filter((c) => !(scoped && SCOPED.includes(c))).forEach(listen)
       if (profile.role === 'admin') { listen('fundMoves'); listen('partnerMoves') } // fonds de réinvestissement : administrateur seulement
       if (can(profile, 'bundles.write')) listen('bundles') // boîtes (vente en gros) : seulement pour qui en a le droit
       // Clôtures de caisse : tout le monde voit les siennes ; l'admin / la finance voient toutes
-      const allClosings = profile.role === 'admin' || can(profile, 'finance.read')
+      const allClosings = profile.role === 'admin' || (can(profile, 'finance.read') && !scoped)
       unsubs.push(onSnapshot(allClosings ? collection(db, 'cashClosings') : query(collection(db, 'cashClosings'), where('userId', '==', authUser?.uid || '')),
         (snap) => setData((d) => ({ ...d, cashClosings: snap.docs.map((x) => ({ id: x.id, ...x.data() })) })), () => setData((d) => ({ ...d, cashClosings: [] }))))
       if (can(profile, 'finance.read') || profile.role === 'admin') {
@@ -147,7 +158,31 @@ export function AppProvider({ children }) {
       }
     }, 1200)
     return () => { clearTimeout(t); unsubs.forEach((u) => u()) }
-  }, [active, profile?.role])
+  }, [active, profile?.role, scoped])
+
+  useEffect(() => {
+    if (!active || !scoped || !settingsReady) return
+    // Une requête par magasin (locationId == X) : c'est ce que les règles de sécurité savent vérifier
+    const unsubs = []
+    SCOPED.forEach((c) => {
+      const parts = {}
+      const publish = () => setData((d) => ({ ...d, [c]: Object.values(parts).flat() }))
+      if (!migrated) {
+        unsubs.push(onSnapshot(collection(db, c), { includeMetadataChanges: true },
+          (snap) => { loaded.current[c] = true; setData((d) => ({ ...d, [c]: snap.docs.map((x) => ({ id: x.id, ...x.data() })) })); setPending((p) => (p[c] === snap.metadata.hasPendingWrites ? p : { ...p, [c]: snap.metadata.hasPendingWrites })) },
+          () => setData((d) => ({ ...d, [c]: [] }))))
+        return
+      }
+      scopeIds.forEach((id) => {
+        parts[id] = []
+        unsubs.push(onSnapshot(query(collection(db, c), where('locationId', '==', id)), { includeMetadataChanges: true },
+          (snap) => { loaded.current[c] = true; parts[id] = snap.docs.map((x) => ({ id: x.id, ...x.data() })); publish(); setPending((p) => (p[c + id] === snap.metadata.hasPendingWrites ? p : { ...p, [c + id]: snap.metadata.hasPendingWrites })) },
+          () => { parts[id] = []; publish() }))
+      })
+    })
+    return () => unsubs.forEach((u) => u())
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, scopeKey, migrated, settingsReady])
 
   const locations = settings?.locations?.length ? settings.locations : DEFAULT_SETTINGS.locations
   setCompanyPrint(settings?.print)
@@ -199,6 +234,7 @@ export function AppProvider({ children }) {
       saleCount: allSales.filter((x) => (x.lines || []).some((l) => l.itemId === it.id)).length
     })))
     return {
+      locIds: allowedKey === '*' ? null : allowedKey.split(','), firstLoc: firstLocId,
       products: data.products || [], suppliers: data.suppliers || [], customers: data.customers || [],
       projects: allProjects.filter((p) => !p.deletedAt), expenses, sales, stockSales,
       bundles: data.bundles || [], fundMoves: data.fundMoves || [], partnerMoves: data.partnerMoves || [], users: data.users || [], inventories: (data.inventories || []).filter(mine), cashClosings: data.cashClosings || [], rateHistory: [...(data.rateHistory || [])].sort((a, b) => (b.at || '').localeCompare(a.at || '')),
@@ -408,6 +444,28 @@ export function AppProvider({ children }) {
     await reauthenticateWithCredential(u, EmailAuthProvider.credential(u.email, pw))
   }, [])
 
+  // Administrateur : donne un magasin (le premier) à toutes les anciennes ventes / dépenses générales / inventaires qui n'en ont pas,
+  // puis active l'isolation par magasin côté serveur (settings.locMigrated).
+  const stampLocations = useCallback(async () => {
+    const d = dataRef.current
+    const first = settings?.locations?.[0]?.id || DEFAULT_SETTINGS.locations[0].id
+    const ops = []
+    ;(d.sales || []).forEach((x) => { if (!x.locationId) ops.push(['sales', x.id]) })
+    ;(d.expenses || []).forEach((x) => { if (!x.projectId && !x.locationId) ops.push(['expenses', x.id]) })
+    ;(d.inventories || []).forEach((x) => { if (!x.locationId) ops.push(['inventories', x.id]) })
+    for (let i = 0; i < ops.length; i += 400) {
+      const b = writeBatch(db)
+      ops.slice(i, i + 400).forEach(([c, id]) => b.set(doc(db, c, id), { locationId: first }, { merge: true }))
+      await b.commit()
+    }
+    await saveSettings({ locMigrated: true }, 'isolation des magasins activée')
+    return ops.length
+  }, [settings, saveSettings])
+  const countUnstamped = useCallback(() => {
+    const d = dataRef.current
+    return (d.sales || []).filter((x) => !x.locationId).length + (d.expenses || []).filter((x) => !x.projectId && !x.locationId).length + (d.inventories || []).filter((x) => !x.locationId).length
+  }, [])
+
   const trashFields = (reason) => ({ deletedAt: nowIso(), deletedBy: profile?.name || '', deleteReason: reason || '', purgeAt: addDaysIso(TRASH_DAYS) })
   const clearTrashFields = { deletedAt: deleteField(), deletedBy: deleteField(), deleteReason: deleteField(), purgeAt: deleteField() }
 
@@ -509,7 +567,7 @@ export function AppProvider({ children }) {
   const value = {
     authUser, profile, active, settings: settings || DEFAULT_SETTINGS, settingsExists: !!settings, settingsReady, ref, rate, online, hasPending, toasts,
     D, costing, audit, save, saveSettings, write, notify, logAudit, nextNumber, isAdmin,
-    verifyPassword, removeExpense, exportAll, restoreAll, cloudBackup, listCloudBackups, loadCloudBackup, locations, multiLoc: locations.length > 1, myLocations, restrictedLocs, defaultLoc, seeAllLocs, notifs, unreadNotifs, markNotifsSeen, pushSaleNotification, trashProject, restoreProject, purgeProject, trashItems, restoreItems, purgeItems, requestSaleDeletion, refuseSaleDeletion, trashSale, restoreSale, purgeSale,
+    verifyPassword, removeExpense, exportAll, restoreAll, cloudBackup, listCloudBackups, loadCloudBackup, stampLocations, countUnstamped, locations, multiLoc: locations.length > 1, myLocations, restrictedLocs, defaultLoc, seeAllLocs, notifs, unreadNotifs, markNotifsSeen, pushSaleNotification, trashProject, restoreProject, purgeProject, trashItems, restoreItems, purgeItems, requestSaleDeletion, refuseSaleDeletion, trashSale, restoreSale, purgeSale,
     can: (p) => can(profile, p),
     logout: () => { try { localStorage.removeItem(`tb-profile-${authUser?.uid}`) } catch { /* rien */ } return signOut(auth) }
   }
