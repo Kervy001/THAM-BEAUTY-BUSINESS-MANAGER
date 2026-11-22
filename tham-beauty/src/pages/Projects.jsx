@@ -315,7 +315,7 @@ function ItemsTab({ p, costing, stats, canEdit, hist }) {
   const [trashIt, setTrashIt] = useState(null)
   async function removeItem(it) {
     if (app.isAdmin) { setTrashIt(it); return } // administrateur : corbeille 30 jours + code
-    const st = itemStock(it, app.D.stockSales)
+    const st = itemStock(it, app.D.sales)
     if (st.received > 0 || st.sold > 0) return alert('Impossible : cet article a déjà été reçu ou vendu.')
     if (!window.confirm(`Retirer « ${it.label} » du projet ?`)) return
     await app.save('projects', p.id, { items: items.filter((x) => x.id !== it.id), ...hist(`Article retiré : ${it.label}`) })
@@ -340,7 +340,7 @@ function ItemsTab({ p, costing, stats, canEdit, hist }) {
         <div className="card !p-2">
           <Table head={['Article', 'Cmd', 'Reçu', 'Prix achat', ...(showMoney ? ['Coût de revient', 'Prix prévu', 'Gain prévu'] : []), 'Vendu', 'Reste', '']}>
             {items.map((it) => {
-              const st = itemStock(it, app.D.stockSales)
+              const st = itemStock(it, app.D.sales)
               const c = costing?.perItem?.[it.id]
               const planned = convert(it.plannedPrice, it.plannedCurrency || 'USD', app.ref, app.rate)
               const gain = c && planned ? planned - c.unitCostRef : null
@@ -369,7 +369,7 @@ function ItemsTab({ p, costing, stats, canEdit, hist }) {
           onConfirm={(reason) => app.trashItems([{ pid: p.id, itemId: trashIt.id }], reason)}
           onClose={(done) => { setTrashIt(null); if (done) app.notify('Article déplacé dans la corbeille (30 jours).') }}>
           <p><b>{trashIt.label}</b> sera retiré du projet et du stock, et déplacé dans la <b>corbeille</b> (restaurable 30 jours).</p>
-          {(() => { const st = itemStock(trashIt, app.D.stockSales); return st.sold > 0 ? <p className="mt-2 rounded-xl bg-gold-100/60 p-2.5 text-xs">{st.sold} unité(s) déjà vendue(s) : les ventes restent intactes.</p> : null })()}
+          {(() => { const st = itemStock(trashIt, app.D.sales); return st.sold > 0 ? <p className="mt-2 rounded-xl bg-gold-100/60 p-2.5 text-xs">{st.sold} unité(s) déjà vendue(s) : les ventes restent intactes.</p> : null })()}
         </PasswordConfirm>
       )}
       {edit && (

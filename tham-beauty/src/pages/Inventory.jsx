@@ -15,7 +15,7 @@ export default function Inventory() {
   const app = useApp()
   const canApply = app.can('stock.write')
   const firstLoc = app.locations[0].id
-  const [loc, setLoc] = useState(app.defaultLoc)
+  const [loc, setLoc] = useState((!app.isAdmin && app.profile?.locationId) || firstLoc)
   const draftKey = `tb-inv-${app.authUser?.uid}-${loc}`
   const read = () => { try { return JSON.parse(localStorage.getItem(draftKey) || '{}') } catch { return {} } }
   const [counts, setCountsRaw] = useState(read)
@@ -107,7 +107,7 @@ export default function Inventory() {
         <button className="btn-gold" onClick={() => setScan(true)}><Icon name="scan" size={16} />Scanner</button>
       </PageHeader>
       <div className="mb-3 flex flex-wrap items-end gap-2">
-        {app.multiLoc && <Select className="min-w-[12rem]" label="Lieu compté" value={loc} onChange={changeLoc} options={app.myLocations.map((l) => ({ value: l.id, label: l.name }))} />}
+        {app.multiLoc && <Select className="min-w-[12rem]" label="Lieu compté" value={loc} onChange={changeLoc} options={app.locations.map((l) => ({ value: l.id, label: l.name }))} />}
         <input className="input min-w-[10rem] flex-1 sm:max-w-xs" placeholder="Rechercher…" value={q} onChange={(e) => setQ(e.target.value)} />
         <label className="flex items-center gap-2 pb-2.5 text-sm"><input type="checkbox" checked={onlyDiff} onChange={(e) => setOnlyDiff(e.target.checked)} />Écarts seulement</label>
       </div>
