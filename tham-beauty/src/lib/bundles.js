@@ -12,7 +12,7 @@ export function bundleCandidates(D, costing, { currency, rate, ref, now = Date.n
   const out = {}
   ;(D.projects || []).filter((p) => p.status !== 'archive').forEach((p) => {
     ;(p.items || []).forEach((it) => {
-      const remaining = itemStock(it, D.sales).remaining
+      const remaining = itemStock(it, D.stockSales || D.sales).remaining
       if (remaining <= 0) return
       const unitCostRef = costing?.[p.id]?.perItem?.[it.id]?.unitCostRef || 0
       const dates = [...(p.receipts || []).map((r) => r.date), p.orderDate].filter(Boolean).sort()

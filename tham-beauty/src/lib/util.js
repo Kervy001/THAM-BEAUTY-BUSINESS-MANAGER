@@ -1,5 +1,7 @@
 import { round2 } from './calc.js'
 
+// Code client unique : celui enregistré à la création, sinon dérivé de l'identifiant (clients plus anciens)
+export const customerCode = (c) => c?.code || (c?.id ? 'C-' + String(c.id).replace(/[^a-z0-9]/gi, '').slice(0, 6).toUpperCase() : '')
 export const uid = () => (crypto.randomUUID ? crypto.randomUUID().slice(0, 12) : Math.random().toString(36).slice(2, 14))
 // Date locale (et non UTC) : à Port-au-Prince, après 20 h, toISOString() donnerait déjà « demain ».
 const p2 = (n) => String(n).padStart(2, '0')

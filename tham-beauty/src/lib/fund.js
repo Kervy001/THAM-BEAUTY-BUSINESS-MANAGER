@@ -67,7 +67,7 @@ export function restockSuggestions(D, costing, ref, budget, { days = 30, windowD
       const unitCost = costing?.[p.id]?.perItem?.[it.id]?.unitCostRef || 0
       const price = it.plannedPrice ? convert(num(it.plannedPrice), it.plannedCurrency || 'USD', ref, p.rate) : 0
       const r = (g[key] ||= { key, label: it.label, sku: it.sku || '', remaining: 0, sold: 0, unitCost: 0, price: 0, last: '' })
-      r.remaining += Math.max(0, itemStock(it, D.sales).remaining)
+      r.remaining += Math.max(0, itemStock(it, D.stockSales || D.sales).remaining)
       r.sold += soldByItem[it.id] || 0
       const when = p.orderDate || ''
       if (unitCost > 0 && when >= r.last) { r.unitCost = unitCost; r.last = when; if (price > 0) r.price = price }

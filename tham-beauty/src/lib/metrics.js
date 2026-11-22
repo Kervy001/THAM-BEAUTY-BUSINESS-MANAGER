@@ -71,7 +71,7 @@ export function computeMetrics({ D, costing, ref, rate, settings }, f) {
     if (!['archive', 'termine'].includes(p.status)) forecast += st.forecastProfitRef
     ;(p.items || []).forEach((it) => {
       if (f.productId && it.productId !== f.productId) return
-      const s = itemStock(it, D.sales)
+      const s = itemStock(it, D.stockSales || D.sales)
       if (s.received <= 0) return
       refs++
       available += s.remaining

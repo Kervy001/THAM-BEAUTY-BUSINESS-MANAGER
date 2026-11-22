@@ -16,6 +16,7 @@ export const PERMS = {
   'export': 'Exporter les données',
   'rates.write': 'Modifier le taux de change',
   'settings.manage': 'Modifier les paramètres',
+  'locations.all': 'Voir tous les magasins (sinon seulement ceux attribués)',
   'users.manage': 'Gérer les utilisateurs'
 }
 
