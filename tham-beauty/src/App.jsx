@@ -95,17 +95,17 @@ function PageLoading() {
 
 const GROUPS = [
   { title: 'Activité', items: [
-    { to: '/', label: 'Tableau de bord', icon: 'home', end: true },
-    { to: '/messages', label: 'Messages', icon: 'chat' },
+    { to: '/', label: 'Tableau de bord', icon: 'home', end: true, perm: ['dashboard.read'] },
+    { to: '/messages', label: 'Messages', icon: 'chat', perm: ['messages.use'] },
     { to: '/ventes', label: 'Ventes', icon: 'receipt', perm: ['sales.write', 'sales.pay', 'finance.read'] },
     { to: '/stock', label: 'Stock', icon: 'layers', perm: ['stock.read', 'stock.write'] },
     { to: '/boites', label: 'Boîtes (gros)', icon: 'package', perm: ['bundles.write'] },
-    { to: '/clients', label: 'Clients', icon: 'users', perm: ['customers.write', 'sales.write', 'finance.read'] },
-    { to: '/creances', label: 'Créances', icon: 'wallet', perm: ['sales.pay', 'sales.write', 'finance.read'] },
-    { to: '/caisse', label: 'Clôture de caisse', icon: 'receipt', perm: ['sales.pay', 'sales.write', 'finance.read'] }
+    { to: '/clients', label: 'Clients', icon: 'users', perm: ['customers.read', 'customers.write'] },
+    { to: '/creances', label: 'Créances', icon: 'wallet', perm: ['receivables.read'] },
+    { to: '/caisse', label: 'Clôture de caisse', icon: 'receipt', perm: ['cash.close'] }
   ] },
   { title: 'Approvisionnement', items: [
-    { to: '/projets', label: 'Projets', icon: 'package', perm: ['projects.write', 'finance.read', 'stock.read', 'stock.write', 'payments.write', 'expenses.write'] },
+    { to: '/projets', label: 'Projets', icon: 'package', perm: ['projects.read', 'projects.write'] },
     { to: '/fournisseurs', label: 'Fournisseurs', icon: 'truck', perm: ['suppliers.write', 'projects.write', 'payments.write', 'finance.read'] },
     { to: '/inventaire', label: 'Inventaire', icon: 'layers', perm: ['stock.write'] },
     { to: '/pertes', label: 'Pertes de stock', icon: 'trash', perm: ['stock.write'] },
@@ -120,7 +120,7 @@ const GROUPS = [
     { to: '/journal', label: 'Journal des actions', icon: 'receipt', perm: ['finance.read'] },
     { to: '/taux', label: 'Taux de change', icon: 'swap', perm: ['rates.write', 'finance.read', 'sales.write'] },
     { to: '/rapports', label: 'Rapports', icon: 'chart', perm: ['finance.read', 'export'] },
-    { to: '/admin', label: 'Utilisateurs & réglages', icon: 'settings', perm: ['users.manage', 'settings.manage'] },
+    { to: '/admin', label: 'Utilisateurs & réglages', icon: 'settings', perm: ['settings.manage'] },
     { to: '/securite', label: 'Sécurité (PIN)', icon: 'lock' },
     { to: '/corbeille', label: 'Corbeille', icon: 'trash', adminOnly: true }
   ] }
@@ -145,6 +145,13 @@ export default function App() {
   const loc = useLocation()
   const navigate = useNavigate()
   const theme = useTheme()
+
+  // Accès aux pages : même règle que le menu (autorisations du compte). Une page non autorisée renvoie vers la première page permise.
+  const navItems = GROUPS.flatMap((g) => g.items)
+  const allowed = (it) => (it.adminOnly ? app.isAdmin : !it.perm || app.isAdmin || it.perm.some((p) => app.can(p)))
+  const hit = navItems.find((it) => (it.to === '/' ? loc.pathname === '/' : loc.pathname === it.to || loc.pathname.startsWith(it.to + '/')))
+  const pageBlocked = !!app.profile && !!hit && !allowed(hit)
+  const homeTo = (navItems.find(allowed) || { to: '/securite' }).to
 
   // Une fois connecté, on précharge discrètement les pages les plus utilisées : la navigation devient instantanée.
   const ready = !!app.authUser && !!app.profile && app.profile.active !== false
@@ -271,6 +278,7 @@ export default function App() {
         <main key={loc.pathname} className="pop-in mx-auto max-w-6xl px-4 pb-28 pt-5 sm:px-6 lg:pb-10 lg:pt-8">
           <ErrorBoundary resetKey={loc.pathname}>
           <Suspense fallback={<PageLoading />}>
+          {pageBlocked ? <Navigate to={homeTo} replace /> : (
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/ventes" element={<Sales />} />
@@ -305,6 +313,7 @@ export default function App() {
             <Route path="/corbeille" element={app.isAdmin ? <Trash /> : <Navigate to="/" />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
+          )}
           </Suspense>
           </ErrorBoundary>
         </main>
