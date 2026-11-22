@@ -5,10 +5,11 @@ import { itemStock, itemStockAt } from './calc.js'
 export function stockRows(D, costing, locId, firstLoc) {
   const g = {}
   ;(D.projects || []).forEach((p) => (p.items || []).forEach((it) => {
-    const st = itemStock(it, D.sales)
+    const SS = D.stockSales || D.sales
+    const st = itemStock(it, SS)
     if (st.received <= 0 && st.sold <= 0) return
     const key = `${it.productId || ''}|${it.variantId || ''}|${it.productId ? '' : it.label}`
-    const q = locId ? itemStockAt(it, D.sales, locId, firstLoc) : st.remaining
+    const q = locId ? itemStockAt(it, SS, locId, firstLoc) : st.remaining
     const c = costing?.[p.id]?.perItem?.[it.id]?.unitCostRef || 0
     const r = (g[key] ||= { key, label: it.label, sku: it.sku || '', productId: it.productId || '', variantId: it.variantId || '', expected: 0, value: 0, lots: [] })
     r.lots.push({ pid: p.id, itemId: it.id, number: p.number, expected: q, unitCost: c })

@@ -125,6 +125,18 @@ export function AppProvider({ children }) {
 
   setCompanyPrint(settings?.print)
   const locations = settings?.locations?.length ? settings.locations : DEFAULT_SETTINGS.locations
+  // Accès par magasin : l'admin (ou « Voir tous les magasins ») voit tout ; les autres seulement les magasins attribués.
+  // Compte ancien sans attribution = tous les magasins (rien ne disparaît par surprise).
+  const firstLocId = locations[0].id
+  const seeAllLocs = !profile || profile.role === 'admin' || can(profile, 'locations.all')
+  const allowedKey = (() => {
+    if (seeAllLocs || locations.length < 2) return '*'
+    const ids = (profile?.locationIds?.length ? profile.locationIds : profile?.locationId ? [profile.locationId] : []).filter((i) => locations.some((l) => l.id === i))
+    return ids.length ? ids.join(',') : '*'
+  })()
+  const myLocations = allowedKey === '*' ? locations : locations.filter((l) => allowedKey.split(',').includes(l.id))
+  const restrictedLocs = allowedKey !== '*'
+  const defaultLoc = (myLocations.find((l) => l.id === profile?.locationId) || myLocations[0]).id
   const hasPending = Object.values(pending).some(Boolean)
   useEffect(() => {
     if (wasPending.current && !hasPending && online) notify('Données synchronisées ✓')
@@ -138,12 +150,17 @@ export function AppProvider({ children }) {
   // une vente dont tous les articles viennent d'un projet à la corbeille suit ce projet.
   const D = useMemo(() => {
     const allProjects = data.projects || []
-    const allSales = data.sales || []
-    const allExpenses = data.expenses || []
+    const mine = (x) => allowedKey === '*' || allowedKey.split(',').includes(x.locationId || firstLocId)
+    const rawSales = data.sales || []
+    const allSales = rawSales.filter(mine)
+    // Dépenses générales : par magasin ; dépenses de projet (achats fournisseurs) : communes
+    const allExpenses = (data.expenses || []).filter((e) => e.projectId || mine(e))
     const trashedP = allProjects.filter((p) => p.deletedAt)
     const tIds = new Set(trashedP.map((p) => p.id))
     const onlyInTrashedProject = (s) => (s.lines || []).length > 0 && s.lines.every((l) => tIds.has(l.projectId))
     const sales = allSales.filter((s) => !s.deletedAt && !onlyInTrashedProject(s))
+    // Toutes les ventes (tous magasins) : sert uniquement à calculer le stock exact, jamais affichée
+    const stockSales = rawSales.filter((s) => !s.deletedAt && !onlyInTrashedProject(s))
     const trashedSales = allSales.filter((s) => s.deletedAt && !onlyInTrashedProject(s))
     const expenses = allExpenses.filter((e) => !tIds.has(e.projectId))
     const trashProjects = trashedP.map((p) => ({
@@ -157,12 +174,12 @@ export function AppProvider({ children }) {
     })))
     return {
       products: data.products || [], suppliers: data.suppliers || [], customers: data.customers || [],
-      projects: allProjects.filter((p) => !p.deletedAt), expenses, sales,
-      users: data.users || [], inventories: data.inventories || [], cashClosings: data.cashClosings || [], rateHistory: [...(data.rateHistory || [])].sort((a, b) => (b.at || '').localeCompare(a.at || '')),
+      projects: allProjects.filter((p) => !p.deletedAt), expenses, sales, stockSales,
+      users: data.users || [], inventories: (data.inventories || []).filter(mine), cashClosings: data.cashClosings || [], rateHistory: [...(data.rateHistory || [])].sort((a, b) => (b.at || '').localeCompare(a.at || '')),
       trash: { projects: trashProjects, sales: trashedSales, items: trashItems },
       deleteRequests: sales.filter((s) => s.deleteRequest?.status === 'pending')
     }
-  }, [data])
+  }, [data, allowedKey, firstLocId])
 
   // Coût de revient par projet (devise de référence)
   const costing = useMemo(() => {
@@ -408,7 +425,7 @@ export function AppProvider({ children }) {
   const value = {
     authUser, profile, active, settings, ref, rate, online, hasPending, toasts,
     D, costing, audit, save, saveSettings, write, notify, logAudit, nextNumber, isAdmin,
-    verifyPassword, exportAll, restoreAll, locations, multiLoc: locations.length > 1, notifs, unreadNotifs, markNotifsSeen, pushSaleNotification, trashProject, restoreProject, purgeProject, trashItems, restoreItems, purgeItems, requestSaleDeletion, refuseSaleDeletion, trashSale, restoreSale, purgeSale,
+    verifyPassword, exportAll, restoreAll, locations, multiLoc: locations.length > 1, myLocations, restrictedLocs, defaultLoc, seeAllLocs, notifs, unreadNotifs, markNotifsSeen, pushSaleNotification, trashProject, restoreProject, purgeProject, trashItems, restoreItems, purgeItems, requestSaleDeletion, refuseSaleDeletion, trashSale, restoreSale, purgeSale,
     can: (p) => can(profile, p),
     logout: () => signOut(auth)
   }

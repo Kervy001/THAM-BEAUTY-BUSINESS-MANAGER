@@ -1,4 +1,3 @@
-import { partnerPeriodTotals } from './partners.js'
 import { convert, inRange, itemStock, projectStats, purchaseSummary, saleSummary, saleProfit, saleTotals, salePayments } from './calc.js'
 
 // Calcule tous les indicateurs à partir des données réelles. f = { range, projectId, customerId, supplierId, productId, currency }
@@ -44,15 +43,10 @@ export function computeMetrics({ D, costing, ref, rate, settings }, f) {
   })
   const expenses = D.expenses.filter((e) => e.status !== 'annule' && inRange(e.date, f.range) && (!f.projectId || e.projectId === f.projectId))
   const expProject = expenses.filter((e) => e.projectId).reduce((s, e) => s + convert(e.amount, e.currency, ref, e.rate), 0)
-  // Frais globaux de projet (non répartis sur les articles) : ils réduisent le résultat, ils ne sont pas dans le coût des marchandises vendues.
-  const expGlobalProject = expenses.filter((e) => e.projectId && e.global).reduce((s, e) => s + convert(e.amount, e.currency, ref, e.rate), 0)
   const expGeneral = f.projectId ? 0 : expenses.filter((e) => !e.projectId).reduce((s, e) => s + convert(e.amount, e.currency, ref, e.rate), 0)
-  // Paiements fournisseurs : ceux financés par le fonds de réinvestissement sont isolés (fundPaid) ; ils ne touchent ni CA ni bénéfice.
-  let supplierPaid = 0, fundPaid = 0
-  projects.forEach((p) => (p.supplierPayments || []).filter((x) => x.status !== 'annule' && inRange(x.date, f.range)).forEach((x) => { const v = convert(x.amount, x.currency, ref, x.rate); if (x.fundMoveId) fundPaid += v; else supplierPaid += v }))
+  let supplierPaid = 0
+  projects.forEach((p) => (p.supplierPayments || []).filter((x) => x.status !== 'annule' && inRange(x.date, f.range)).forEach((x) => { supplierPaid += convert(x.amount, x.currency, ref, x.rate) }))
   cashOut += expProject + expGeneral + supplierPaid
-  // Associés : leurs apports sont des entrées ; remboursements et distributions sont des sorties (sans filtre de projet/client)
-  if (!f.projectId && !f.customerId && !f.supplierId && !f.productId) { const pt = partnerPeriodTotals(D, ref, f.range); cashIn += pt.apports; cashOut += pt.sorties }
 
   // Créances / dettes (à date)
   let receivables = 0, unpaidInvoices = 0
@@ -71,7 +65,7 @@ export function computeMetrics({ D, costing, ref, rate, settings }, f) {
     if (!['archive', 'termine'].includes(p.status)) forecast += st.forecastProfitRef
     ;(p.items || []).forEach((it) => {
       if (f.productId && it.productId !== f.productId) return
-      const s = itemStock(it, D.sales)
+      const s = itemStock(it, D.stockSales || D.sales)
       if (s.received <= 0) return
       refs++
       available += s.remaining
@@ -83,20 +77,13 @@ export function computeMetrics({ D, costing, ref, rate, settings }, f) {
     })
   })
 
-  // Pertes de stock (cassé, volé, expiré…) : valeur au coût de revient, comptée dans le résultat
-  let lossValue = 0
-  projects.forEach((p) => (p.items || []).forEach((it) => {
-    if (f.productId && it.productId !== f.productId) return
-    ;(it.adjustments || []).filter((a) => a.kind === 'loss' && !a.cancelled && inRange(a.date || String(a.at).slice(0, 10), f.range)).forEach((a) => { lossValue += -Number(a.qty) * (Number(a.unitCostRef) || costing[p.id]?.perItem?.[it.id]?.unitCostRef || 0) })
-  }))
-
   const topItems = Object.values(byItem).sort((a, b) => b.qty - a.qty).slice(0, 5)
   const topProjects = Object.values(byProject).map((x) => ({ ...x, p: D.projects.find((p) => p.id === x.id) })).sort((a, b) => b.profit - a.profit).slice(0, 5)
 
   return {
     gross, discount, net, cogs, grossProfit: net - cogs, nbSales, avgBasket: nbSales ? net / nbSales : 0,
-    expGeneral, expProject, expGlobalProject, lossValue, netResult: net - cogs - expGeneral - expGlobalProject - lossValue,
-    cashIn, cashOut, fundPaid, treasury: cashIn - cashOut, treasuryAfter: cashIn - cashOut - fundPaid, fx, receivables, payables, unpaidInvoices, forecast,
+    expGeneral, expProject, netResult: net - cogs - expGeneral,
+    cashIn, cashOut, treasury: cashIn - cashOut, fx, receivables, payables, unpaidInvoices, forecast,
     refs, available, outOfStock, lowStock, stockValue, slow, topItems, topProjects, byDay,
     activeProjects: D.projects.filter((p) => !['termine', 'archive'].includes(p.status)).length,
     discountPct: gross > 0 ? (discount / gross) * 100 : 0
