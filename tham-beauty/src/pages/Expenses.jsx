@@ -14,7 +14,7 @@ export function ExpenseModal({ projectId, expense, onClose }) {
   const cats = projectId ? app.settings.expenseCategories : GENERAL_CATEGORIES
   const [e, setE] = useState(editing ? { ...expense, amount: String(expense.amount ?? ''), rate: String(expense.rate ?? app.rate), global: !!expense.global, funding: fundingOf(expense).map((f) => ({ ...f, amount: String(f.amount) })) } : {
     projectId: projectId || '', date: today(), category: cats[0], description: '', payee: '', amount: '', currency: 'USD',
-    rate: String(app.rate), method: 'Espèces', funding: [], reference: '', comment: '', global: true
+    rate: String(app.rate), method: 'Espèces', funding: [], reference: '', comment: '', global: true, locationId: app.defaultLoc
   })
   const [busy, setBusy] = useState(false)
   const set = (k) => (v) => setE({ ...e, [k]: v })
@@ -37,6 +37,7 @@ export function ExpenseModal({ projectId, expense, onClose }) {
       }
       const number = await app.nextNumber('DEP')
       const rec = { ...e, funding, number, amount: Number(e.amount), rate: Number(e.rate), convertedRef: converted, refCurrency: app.ref, status: 'valide', kind: e.projectId ? 'projet' : 'general', global: !!(e.projectId && e.global) }
+      if (!(app.multiLoc && !e.projectId)) delete rec.locationId
       const id = await app.save('expenses', null, rec, 'dépense')
       if (e.projectId) {
         await app.save('projects', e.projectId, { history: arrayUnion({ at: nowIso(), by: app.profile?.name || '', text: `Dépense ${number} : ${e.category} ${e.amount} ${e.currency} (taux ${e.rate})` }) })
@@ -52,6 +53,7 @@ export function ExpenseModal({ projectId, expense, onClose }) {
           <Select label="Type" value={e.projectId} onChange={(v) => setE({ ...e, projectId: v, category: v ? app.settings.expenseCategories[0] : GENERAL_CATEGORIES[0] })}
             options={[{ value: '', label: 'Dépense générale (loyer, internet…)' }, ...app.D.projects.filter((p) => p.status !== 'archive').map((p) => ({ value: p.id, label: `Projet ${p.number} — ${p.name}` }))]} />
         )}
+        {app.multiLoc && !e.projectId && !editing && <Select label="Magasin concerné" value={e.locationId} onChange={set('locationId')} disabled={app.myLocations.length < 2} options={app.myLocations.map((l) => ({ value: l.id, label: l.name }))} />}
         <div className="grid grid-cols-2 gap-3">
           <Input label="Date" type="date" value={e.date} onChange={(x) => set('date')(x.target.value)} required />
           <Select label="Catégorie" value={e.category} onChange={set('category')} options={e.projectId ? app.settings.expenseCategories : GENERAL_CATEGORIES} />

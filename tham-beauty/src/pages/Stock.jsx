@@ -39,19 +39,29 @@ export default function Stock() {
   const allRows = useMemo(() => {
     const g = {}
     app.D.projects.forEach((p) => (p.items || []).forEach((it) => {
-      const st = itemStock(it, app.D.sales)
+      const st = itemStock(it, app.D.stockSales)
       if (st.received <= 0 && st.sold <= 0) return
       const key = `${it.productId || ''}|${it.variantId || ''}|${it.productId ? '' : it.label}`
       const c = app.costing[p.id]?.perItem?.[it.id]?.unitCostRef || 0
       const r = (g[key] ||= { byLoc: {}, key, label: it.label, sku: it.sku, productId: it.productId || '', variantId: it.variantId || '', received: 0, sold: 0, returned: 0, lost: 0, remaining: 0, value: 0, parts: [], lots: [] })
-      app.locations.forEach((l) => { r.byLoc[l.id] = (r.byLoc[l.id] || 0) + itemStockAt(it, app.D.sales, l.id, firstLoc) })
+      app.locations.forEach((l) => { r.byLoc[l.id] = (r.byLoc[l.id] || 0) + itemStockAt(it, app.D.stockSales, l.id, firstLoc) })
+      // Utilisateur limité à certains magasins : on ne voit que le stock de ses magasins
+      if (app.restrictedLocs) {
+        const mineIds = app.myLocations.map((l) => l.id)
+        const qm = mineIds.reduce((t, id) => t + itemStockAt(it, app.D.stockSales, id, firstLoc), 0)
+        r.mineQty = (r.mineQty || 0) + qm
+        r.touch = r.touch || qm !== 0 || mineIds.includes(it.locationId || firstLoc) || (it.transfers || []).some((t) => mineIds.includes(t.to) || mineIds.includes(t.from))
+        r.mineRemaining = r.mineRemaining || 0
+      }
       r.lots.push({ pid: p.id, itemId: it.id, number: p.number, received: st.received, sold: st.sold, remaining: st.remaining })
       r.received += st.received; r.sold += st.sold; r.returned += st.returned; r.lost += st.lost; r.remaining += st.remaining
       r.value += st.remaining * c
       if (st.remaining > 0) r.parts.push({ number: p.number, remaining: st.remaining, link: `${p.id}|${it.id}` })
     }))
     return Object.values(g)
-  }, [app.D, app.costing, app.locations])
+      .filter((r) => !app.restrictedLocs || r.touch)
+      .map((r) => (app.restrictedLocs ? { ...r, value: r.remaining ? (r.value * (r.mineQty || 0)) / r.remaining : 0, remaining: r.mineQty || 0 } : r))
+  }, [app.D, app.costing, app.locations, app.restrictedLocs, app.myLocations])
   // Vue par lieu : le « restant » devient le stock du lieu choisi
   const viewRows = useMemo(() => (locFilter ? allRows.map((r) => { const q = r.byLoc[locFilter] || 0; return { ...r, remaining: q, value: r.remaining ? (r.value * q) / r.remaining : 0 } }) : allRows), [allRows, locFilter])
   const rows = useMemo(() => viewRows.filter((r) => (r.label + (r.sku || '')).toLowerCase().includes(q.toLowerCase()) && (!only || (only === 'rupture' ? r.remaining <= 0 : only === 'faible' ? r.remaining > 0 && r.remaining <= low : r.remaining > 0)))
@@ -81,7 +91,7 @@ export default function Stock() {
       </PageHeader>
       <div className="mb-4 flex flex-wrap gap-2">
         <div className="relative min-w-[14rem] flex-1 sm:max-w-xs"><Icon name="search" size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-400" /><input className="input !pl-10" placeholder="Rechercher…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
-        {app.multiLoc && <select className="input !w-auto" value={locFilter} onChange={(e) => setLocFilter(e.target.value)}><option value="">Tous les lieux</option>{app.locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</select>}
+        {app.multiLoc && <select className="input !w-auto" value={locFilter} onChange={(e) => setLocFilter(e.target.value)}><option value="">{app.restrictedLocs ? 'Mes magasins' : 'Tous les lieux'}</option>{app.myLocations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</select>}
         <select className="input !w-auto" value={only} onChange={(e) => setOnly(e.target.value)}>
           <option value="">Tout le stock</option><option value="dispo">Disponible</option><option value="faible">Stock faible (≤ {low})</option><option value="rupture">En rupture</option>
         </select>
@@ -151,7 +161,7 @@ function StockEntry({ onClose, onlyProduct, onlyVariant }) {
   })
   const first = onlyProduct && startOpts.length ? startOpts[0] : null
   const [f, setF] = useState({
-    locationId: (!app.isAdmin && app.profile?.locationId) || app.locations[0].id,
+    locationId: app.defaultLoc,
     pick: first ? `${first.pr.id}|${first.v?.id || ''}` : '', label: first ? (first.v ? `${first.pr.name} — ${first.v.label}` : first.pr.name) : '',
     qty: '', cost: '', costCur: 'USD', price: first?.v?.price ? String(first.v.price) : '', priceCur: first?.v?.priceCurrency || 'USD'
   })
@@ -230,7 +240,7 @@ function StockEntry({ onClose, onlyProduct, onlyVariant }) {
         <Notice tone="blue">Pour du stock sans commande fournisseur (stock de départ, achat sur place). Pour une commande à un fournisseur, utilisez plutôt un <b>Projet</b> puis une réception.</Notice>
         <Select label="Produit / variante" value={f.pick} onChange={pick} placeholder="— choisir (ou saisir un libellé libre) —" options={opts} />
         <button type="button" className="btn-gold w-full" onClick={() => setScanning(true)}><Icon name="scan" size={16} />Scanner le produit</button>
-        {app.multiLoc && <Select label="Reçu dans (boutique / dépôt)" value={f.locationId} onChange={(v) => setF({ ...f, locationId: v })} options={app.locations.map((l) => ({ value: l.id, label: l.name }))} />}
+        {app.multiLoc && <Select label="Reçu dans (boutique / dépôt)" value={f.locationId} onChange={(v) => setF({ ...f, locationId: v })} options={app.myLocations.map((l) => ({ value: l.id, label: l.name }))} />}
         <Input label="Libellé" value={f.label} onChange={(e) => set('label')(e.target.value)} required />
         <div className="grid grid-cols-2 gap-3">
           <div ref={qtyRef} className="scroll-mt-4"><NumberInput label="Quantité" value={f.qty} onChange={set('qty')} required /></div>
@@ -347,7 +357,7 @@ function TransferModal({ rows, onClose }) {
         if (left <= 0) break
         const it = itemOf(l)
         if (!it) continue
-        const here = Math.min(left, Math.max(0, itemStockAt(it, app.D.sales, from, firstLoc)))
+        const here = Math.min(left, Math.max(0, itemStockAt(it, app.D.stockSales, from, firstLoc)))
         if (here <= 0) continue
         left -= here
         ;(byP[l.pid] ||= []).push({ itemId: l.itemId, qty: here })
@@ -366,7 +376,7 @@ function TransferModal({ rows, onClose }) {
       <form onSubmit={submit} className="space-y-3">
         <Select label="Article" value={key} onChange={setKey} placeholder="— choisir —" options={rows.filter((r) => r.remaining > 0).map((r) => ({ value: r.key, label: `${r.label} (${r.remaining})` }))} />
         <div className="grid grid-cols-2 gap-3">
-          <Select label="De" value={from} onChange={setFrom} options={app.locations.map((l) => ({ value: l.id, label: l.name }))} />
+          <Select label="De" value={from} onChange={setFrom} options={app.myLocations.map((l) => ({ value: l.id, label: l.name }))} />
           <Select label="Vers" value={to} onChange={setTo} placeholder="— lieu —" options={app.locations.map((l) => ({ value: l.id, label: l.name }))} />
         </div>
         <NumberInput label={`Quantité${row ? ` (disponible : ${avail})` : ''}`} value={qty} onChange={setQty} required />
