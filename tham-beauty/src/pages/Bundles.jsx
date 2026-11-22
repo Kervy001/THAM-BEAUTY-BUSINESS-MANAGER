@@ -1,3 +1,4 @@
+import CustomerPicker from '../components/CustomerPicker.jsx'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { deleteDoc, doc } from 'firebase/firestore'
@@ -165,7 +166,7 @@ export function BundleEditor() {
         <div className="space-y-5 lg:col-span-3">
           <section className="card grid gap-3 sm:grid-cols-2">
             <Input label="Nom de la boîte" value={f.name} onChange={(e) => set('name')(e.target.value)} placeholder="ex. Boîte 100 pièces" disabled={blocked} className="sm:col-span-2" />
-            <Select label="Client (facultatif)" value={f.customerId} onChange={set('customerId')} placeholder="Client de passage / à définir" options={app.D.customers.map((c) => ({ value: c.id, label: c.name }))} disabled={blocked} />
+            <CustomerPicker label="Client (facultatif)" value={f.customerId} onChange={set('customerId')} placeholder="Client de passage / à définir" disabled={blocked} />
             {!f.customerId ? <Input label="Nom du client" value={f.customerName} onChange={(e) => set('customerName')(e.target.value)} disabled={blocked} /> : <div />}
             <Select label="Devise" value={f.currency} onChange={set('currency')} options={['USD', 'HTG']} disabled={blocked || lines.length > 0} hint={lines.length ? 'Videz la boîte pour changer de devise.' : undefined} />
             <NumberInput label={`Prix de la boîte (${cur}) — ou budget du client`} value={f.price} onChange={set('price')} disabled={blocked} />

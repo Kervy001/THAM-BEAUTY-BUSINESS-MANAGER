@@ -7,6 +7,7 @@ import { DELIVERY, PAY_STATUS, fdate, fdt, money, nowIso, sellerOf, today, uid }
 import { Badge, Empty, Input, Modal, MoneyStat, Notice, NumberInput, NumInput, PageHeader, Select, Stat, Table, Textarea, payTone } from '../components/ui.jsx'
 import Icon from '../components/Icon.jsx'
 import { receiptLogo } from '../components/Logo.jsx'
+import CustomerPicker from '../components/CustomerPicker.jsx'
 import PaymentModal from '../components/PaymentModal.jsx'
 import Scanner from '../components/Scanner.jsx'
 import { useWedgeScanner, wedgeNotify } from '../lib/wedge.js'
@@ -82,14 +83,14 @@ export function NewSale() {
   const nav = useNavigate()
   const [params] = useSearchParams()
   const firstLoc = app.locations[0].id
-  const [f, setF] = useState({ locationId: (!app.isAdmin && app.profile?.locationId) || firstLoc, customerId: '', customerName: '', date: today(), currency: 'USD', rate: String(app.rate), delivery: 'retire', globalType: 'fixed', globalValue: '', notes: '' })
+  const [f, setF] = useState({ locationId: app.defaultLoc, customerId: '', customerName: '', date: today(), currency: 'USD', rate: String(app.rate), delivery: 'retire', globalType: 'fixed', globalValue: '', notes: '' })
   const [lines, setLines] = useState([])
   const [pay, setPay] = useState({ amount: '', currency: 'USD', rate: String(app.rate), method: 'Espèces' })
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [search, setSearch] = useState('')
 
-  const stockOptions = useMemo(() => stockOptionsOf(app.D.projects, app.D.sales, undefined, app.multiLoc ? f.locationId : undefined, firstLoc), [app.D.projects, app.D.sales, app.multiLoc, f.locationId])
+  const stockOptions = useMemo(() => stockOptionsOf(app.D.projects, app.D.stockSales, undefined, app.multiLoc ? f.locationId : undefined, firstLoc), [app.D.projects, app.D.stockSales, app.multiLoc, f.locationId])
   const [scan, setScan] = useState(false)
   const linesRef = useRef([])
   const lastAdded = useRef('')
@@ -228,11 +229,11 @@ export function NewSale() {
       <PageHeader title="Nouvelle vente" />
       <div className="card grid gap-3 sm:grid-cols-3">
         {app.multiLoc && (
-          <Select label="Vendu depuis (boutique / dépôt)" value={f.locationId} disabled={!app.isAdmin && !!app.profile?.locationId}
+          <Select label="Vendu depuis (boutique / dépôt)" value={f.locationId} disabled={app.myLocations.length < 2}
             onChange={(v) => { if (lines.length && !confirm('Changer de lieu vide le panier (le stock diffère d’un lieu à l’autre). Continuer ?')) return; setLines([]); setF({ ...f, locationId: v }) }}
-            options={app.locations.map((l) => ({ value: l.id, label: l.name }))} />
+            options={app.myLocations.map((l) => ({ value: l.id, label: l.name }))} />
         )}
-        <Select label="Client" value={f.customerId} onChange={(v) => setF({ ...f, customerId: v })} placeholder="Client de passage" options={app.D.customers.map((c) => ({ value: c.id, label: c.name }))} />
+        <CustomerPicker value={f.customerId} onChange={(v) => setF({ ...f, customerId: v })} />
         {!f.customerId && <Input label="Nom du client (facultatif)" value={f.customerName} onChange={(e) => setF({ ...f, customerName: e.target.value })} />}
         <Input label="Date" type="date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} />
         <Select label="Devise de facturation" value={f.currency} onChange={(v) => { setF({ ...f, currency: v }); setPay({ ...pay, currency: v }) }} options={['USD', 'HTG']} />
@@ -543,7 +544,7 @@ export function SaleDetail() {
 function EditSaleModal({ s, onClose }) {
   const app = useApp()
   const own = useMemo(() => new Set((s.lines || []).map((l) => l.itemId)), [s.id])
-  const options = useMemo(() => stockOptionsOf(app.D.projects, app.D.sales, own, s.locationId, app.locations[0].id), [app.D.projects, app.D.sales, own, s.locationId])
+  const options = useMemo(() => stockOptionsOf(app.D.projects, app.D.stockSales, own, s.locationId, app.locations[0].id), [app.D.projects, app.D.stockSales, own, s.locationId])
   const origQty = Object.fromEntries((s.lines || []).map((l) => [l.id, Number(l.qty)]))
   const [lines, setLines] = useState(() => (s.lines || []).map((l) => ({ ...l, qty: String(l.qty) })))
   const [search, setSearch] = useState('')

@@ -47,7 +47,7 @@ export default function Labels() {
     const m = {}
     app.D.projects.forEach((p) => (p.items || []).forEach((it) => {
       const k = `${it.productId || ''}|${it.variantId || ''}`
-      m[k] = (m[k] || 0) + Math.max(0, itemStock(it, app.D.sales).remaining)
+      m[k] = (m[k] || 0) + Math.max(0, itemStock(it, app.D.stockSales).remaining)
     }))
     return m
   }, [app.D.projects, app.D.sales])

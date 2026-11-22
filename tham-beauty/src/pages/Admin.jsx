@@ -114,15 +114,16 @@ function Users() {
   async function submit(e) {
     e.preventDefault()
     setErr('')
+    if (app.multiLoc && edit.role !== 'admin' && !edit.perms.includes('locations.all') && !(edit.locationIds || []).length && (!edit.id || !edit.locationId)) return setErr('Choisissez au moins un magasin pour cet utilisateur (ou donnez-lui « Voir tous les magasins »).')
     if (!edit.id && !navigator.onLine) return setErr('Connexion Internet requise pour créer un utilisateur.')
     setBusy(true)
     try {
       if (edit.id) {
-        await app.write(setDoc(doc(db, 'users', edit.id), { name: edit.name, role: edit.role, perms: edit.perms, active: edit.active !== false, locationId: edit.locationId || '', updatedAt: nowIso() }, { merge: true }))
+        await app.write(setDoc(doc(db, 'users', edit.id), { name: edit.name, role: edit.role, perms: edit.perms, active: edit.active !== false, locationId: edit.locationIds?.[0] || edit.locationId || '', locationIds: edit.locationIds || [], updatedAt: nowIso() }, { merge: true }))
         app.logAudit('modification utilisateur', 'users', edit.id, edit.email)
       } else {
         const uidNew = await withSecondaryAuth(async (a2) => (await createUserWithEmailAndPassword(a2, edit.email.trim(), edit.password)).user.uid)
-        await app.write(setDoc(doc(db, 'users', uidNew), { name: edit.name, email: edit.email.trim(), role: edit.role, perms: edit.perms, active: true, locationId: edit.locationId || '', createdAt: nowIso(), createdBy: app.profile.name }))
+        await app.write(setDoc(doc(db, 'users', uidNew), { name: edit.name, email: edit.email.trim(), role: edit.role, perms: edit.perms, active: true, locationId: edit.locationIds?.[0] || '', locationIds: edit.locationIds || [], createdAt: nowIso(), createdBy: app.profile.name }))
         app.logAudit('création utilisateur', 'users', uidNew, edit.email)
       }
       setEdit(null)
@@ -152,9 +153,21 @@ function Users() {
               <Input label="E-mail" type="email" value={edit.email} onChange={(e) => setEdit({ ...edit, email: e.target.value })} required disabled={!!edit.id} />
               {!edit.id && <Input label="Mot de passe initial" type="text" value={edit.password} onChange={(e) => setEdit({ ...edit, password: e.target.value })} required minLength={8} />}
               <Select label="Rôle (préréglage des autorisations)" value={edit.role} onChange={setRole} options={[...Object.entries(roles).filter(([k]) => app.isAdmin || k !== 'admin'), ...(!roles[edit.role] && edit.role ? [[edit.role, { label: `${edit.role} (supprimé)` }]] : [])].map(([value, r]) => ({ value, label: r.label }))} />
-              {app.multiLoc && <Select label="Point de vente attitré (facultatif)" value={edit.locationId || ''} onChange={(v) => setEdit({ ...edit, locationId: v })} placeholder="— libre : peut choisir —" options={app.locations.map((l) => ({ value: l.id, label: l.name }))} />}
               {edit.id && edit.id !== app.authUser.uid && <Select label="Compte" value={edit.active === false ? 'non' : 'oui'} onChange={(v) => setEdit({ ...edit, active: v === 'oui' })} options={[{ value: 'oui', label: 'Actif' }, { value: 'non', label: 'Désactivé' }]} />}
             </div>
+            {app.multiLoc && edit.role !== 'admin' && (
+              <div className="rounded-lg border p-3">
+                <div className="mb-1 text-sm font-medium">Magasins accessibles</div>
+                <p className="mb-2 text-xs text-neutral-500">Cet utilisateur ne voit que les ventes, le stock, les dépenses et l’inventaire des magasins cochés. Le 1er coché est son magasin par défaut. L’autorisation « Voir tous les magasins » lui donne accès à tout.</p>
+                <div className="grid gap-1 sm:grid-cols-2">
+                  {app.locations.map((l) => {
+                    const cur = edit.locationIds?.length ? edit.locationIds : (edit.locationId ? [edit.locationId] : [])
+                    return <label key={l.id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={cur.includes(l.id)} onChange={() => setEdit({ ...edit, locationIds: cur.includes(l.id) ? cur.filter((x) => x !== l.id) : [...cur, l.id] })} />{l.name}</label>
+                  })}
+                </div>
+                {!edit.locationIds?.length && !edit.locationId ? <p className="mt-2 text-xs text-amber-700">Aucun magasin coché = tous les magasins (ancien comportement, compte existant).</p> : null}
+              </div>
+            )}
             <div className="rounded-lg border p-3"><div className="mb-2 text-sm font-medium">Autorisations (modifiables)</div>
               <div className="grid gap-1 sm:grid-cols-2">{Object.entries(PERMS).map(([k, l]) => <label key={k} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={edit.role === 'admin' || edit.perms.includes(k)} disabled={edit.role === 'admin'} onChange={() => togglePerm(k)} />{l}</label>)}</div></div>
             {err && <div className="text-sm text-red-600">{err}</div>}
