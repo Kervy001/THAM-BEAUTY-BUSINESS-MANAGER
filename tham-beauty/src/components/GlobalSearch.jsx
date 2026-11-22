@@ -1,4 +1,3 @@
-import { customerCode } from '../lib/util.js'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../lib/store.jsx'
@@ -36,7 +35,7 @@ export default function GlobalSearch({ className = '' }) {
       }
     }
     for (const s of D.sales || []) if (has(s.number, s.customerName)) out.push({ k: 'Vente', title: `${s.number} — ${s.customerName || 'Client'}`, sub: s.date || '', to: `/ventes/${s.id}` })
-    for (const c of D.customers || []) if (has(c.name, c.phone, customerCode(c))) out.push({ k: 'Client', title: c.name, sub: [customerCode(c), c.phone].filter(Boolean).join(' · '), to: '/clients' })
+    for (const c of D.customers || []) if (has(c.name, c.phone)) out.push({ k: 'Client', title: c.name, sub: c.phone || '', to: '/clients' })
     for (const c of D.suppliers || []) if (has(c.name, c.phone)) out.push({ k: 'Fournisseur', title: c.name, sub: c.phone || '', to: '/fournisseurs' })
     for (const p of D.projects || []) if (has(p.number, p.name)) out.push({ k: 'Projet', title: `${p.number} — ${p.name}`, sub: '', to: `/projets/${p.id}` })
     return out.slice(0, 30)
