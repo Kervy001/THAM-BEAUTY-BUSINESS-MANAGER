@@ -100,32 +100,28 @@ main .card:nth-child(4) { animation-delay: .15s; } main .card:nth-child(5) { ani
    Limité à l'écran : l'impression (factures, reçus, étiquettes) reste toujours blanche. */
 @media screen {
   html.dark { color-scheme: dark; }
-  html.dark body { background: #0e0e11; color: #ece7dd; background-image: none; }
-  html.dark .login-bg { background: radial-gradient(90% 60% at 50% 0%, rgba(201,154,62,.30), transparent 60%), radial-gradient(60% 40% at 90% 100%, rgba(240,86,143,.18), transparent 60%), #0b0b0d; }
-  html.dark .card { border-color: #2b2b33; }
-  html.dark .btn-primary { background-image: none; background-color: #25252d; box-shadow: none; }
-  html.dark .btn-primary:hover { background-image: none; }
-  html.dark .hover\:bg-blush-50:hover { background-color: #25252d; }
-  html.dark .bg-ink { background-color: #1a1219; }
-  html.dark ::selection { background: #a87d2a; color: #fff; }
+  html.dark body { background: #0f0818; color: #ece7dd; background-image: none; }
+  html.dark .login-bg { background: radial-gradient(90% 60% at 50% 0%, rgba(201,154,62,.30), transparent 60%), radial-gradient(60% 40% at 90% 100%, rgba(240,86,143,.18), transparent 60%), #0b0614; }
+  html.dark .card { border-color: #3a2858; }
+    html.dark .hover\:bg-blush-50:hover { background-color: #2d1d48; }
+  html.dark .bg-ink { background-color: #1a0f2e; }
+  html.dark ::selection { background: #9b4f86; color: #fff; }
 
   /* surfaces */
-  html.dark .bg-white { background-color: #17171c; }
-  html.dark .bg-paper { background-color: #0e0e11; }
+  html.dark .bg-white { background-color: #1d1230; }
+  html.dark .bg-paper { background-color: #0f0818; }
   html.dark .bg-paper\/60 { background-color: rgba(14, 14, 17, .6); }
   html.dark .bg-paper\/90 { background-color: rgba(14, 14, 17, .9); }
-  html.dark .bg-neutral-50 { background-color: #1c1c22; }
-  html.dark .bg-neutral-100 { background-color: #202027; }
-  html.dark .hover\:bg-paper:hover, html.dark .hover\:bg-white:hover { background-color: #202027; }
-  html.dark tbody tr:hover { background: #1d1d23; }
-  html.dark .card { background-color: #17171c; border-color: #2b2b33; box-shadow: none; }
-  html.dark .input { background-color: #1c1c22; border-color: #2f2f38; color: #f2eee6; }
+  html.dark .bg-neutral-50 { background-color: #241638; }
+  html.dark .bg-neutral-100 { background-color: #2a1b42; }
+  html.dark .hover\:bg-paper:hover, html.dark .hover\:bg-white:hover { background-color: #2a1b42; }
+  html.dark tbody tr:hover { background: #27183c; }
+  html.dark .card { background-color: #1d1230; border-color: #3a2858; box-shadow: none; }
+  html.dark .input { background-color: #241638; border-color: #42306a; color: #f2eee6; }
   html.dark .input::placeholder { color: #77716a; }
-  html.dark .input:focus { border-color: #c99a3e; }
-  html.dark .btn-ghost { background-color: #1c1c22; color: #e9e4da; --tw-ring-color: #2f2f38; }
-  html.dark .btn-ghost:hover { background-color: #25252d; }
-  html.dark .btn-primary { background-color: #25252d; }
-  html.dark .btn-primary:hover { background-color: #2d2d36; }
+  html.dark .input:focus { border-color: #f06aa8; }
+  html.dark .btn-ghost { background-color: #241638; color: #e9e4da; --tw-ring-color: #42306a; }
+  html.dark .btn-ghost:hover { background-color: #2d1d48; }
   html.dark .label { color: #b3ada2; }
   html.dark .th { color: #8f897f; }
 
@@ -135,22 +131,22 @@ main .card:nth-child(4) { animation-delay: .15s; } main .card:nth-child(5) { ani
   html.dark .text-neutral-600 { color: #b6b0a5; }
   html.dark .text-neutral-500 { color: #958f85; }
   html.dark .text-neutral-400 { color: #7c766d; }
-  html.dark .text-gold-700, html.dark .text-gold-600 { color: #e0b25c; }
-  html.dark .text-ink { color: #0b0b0d; }
+  html.dark .text-gold-700, html.dark .text-gold-600 { color: #f4a3cf; }
+  html.dark .text-ink { color: #0b0614; }
   html.dark .text-emerald-700 { color: #6ee7b7; }
   html.dark .text-red-700, html.dark .text-red-600, html.dark .text-blush-600 { color: #ff8fb4; }
   html.dark .text-amber-800 { color: #fcd68a; }
   html.dark .text-sky-700, html.dark .text-sky-900 { color: #8fd3f7; }
 
   /* filets et anneaux */
-  html.dark .border-line, html.dark [class*="border-line"] { border-color: #2b2b33; }
-  html.dark .border-neutral-100, html.dark .border-neutral-200 { border-color: #2b2b33; }
-  html.dark .ring-line { --tw-ring-color: #2b2b33; }
-  html.dark [class*="ring-line"] { --tw-ring-color: #2b2b33; }
-  html.dark .bg-line { background-color: #2b2b33; }
-  html.dark [class*="divide-line"] > :not([hidden]) ~ :not([hidden]) { border-color: #2b2b33; }
-  html.dark .ring-paper { --tw-ring-color: #0e0e11; }
-  html.dark .ring-white { --tw-ring-color: #17171c; }
+  html.dark .border-line, html.dark [class*="border-line"] { border-color: #3a2858; }
+  html.dark .border-neutral-100, html.dark .border-neutral-200 { border-color: #3a2858; }
+  html.dark .ring-line { --tw-ring-color: #3a2858; }
+  html.dark [class*="ring-line"] { --tw-ring-color: #3a2858; }
+  html.dark .bg-line { background-color: #3a2858; }
+  html.dark [class*="divide-line"] > :not([hidden]) ~ :not([hidden]) { border-color: #3a2858; }
+  html.dark .ring-paper { --tw-ring-color: #0f0818; }
+  html.dark .ring-white { --tw-ring-color: #1d1230; }
 
   /* pastilles et messages colorés */
   html.dark .bg-gold-100 { background-color: rgba(201, 154, 62, .18); }
@@ -169,8 +165,27 @@ main .card:nth-child(4) { animation-delay: .15s; } main .card:nth-child(5) { ani
 
   /* fenêtres : le voile reste sombre, le panneau suit .bg-white */
   html.dark .shadow-pop { box-shadow: 0 18px 50px -12px rgba(0, 0, 0, .7); }
-}
 
+  /* ---- Mode sombre « verre violet » : fond nuit pourpre, cartes en verre, accents rose/violet ---- */
+  html.dark body { background: linear-gradient(135deg, #130a22 0%, #1a0f2e 55%, #1d1033 100%); background-image: linear-gradient(135deg, #130a22 0%, #1a0f2e 55%, #1d1033 100%); }
+  html.dark body::before { content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none; background-size: 140% 140%;
+    background-image: radial-gradient(40% 40% at 10% 12%, rgba(240,106,168,.22), transparent 70%), radial-gradient(38% 38% at 90% 18%, rgba(139,123,255,.26), transparent 70%), radial-gradient(40% 40% at 80% 92%, rgba(255,150,120,.14), transparent 70%), radial-gradient(35% 35% at 6% 90%, rgba(200,107,216,.2), transparent 70%);
+    animation: mesh-drift 22s ease-in-out infinite alternate; }
+  html.dark .card { background-color: rgba(36,22,58,.72); border-color: rgba(255,255,255,.08); box-shadow: 0 18px 40px -24px rgba(0,0,0,.7); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+  html.dark aside { background: rgba(26,15,46,.72); backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px); border-color: rgba(255,255,255,.08); }
+  html.dark header.sticky { background: rgba(26,15,46,.75); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
+  html.dark nav.fixed { background: rgba(26,15,46,.82); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-color: rgba(255,255,255,.08); }
+  html.dark aside a[aria-current="page"] { background: linear-gradient(135deg, #f06aa8, #8b5be0); color: #fff; box-shadow: 0 10px 22px -10px rgba(240,106,168,.7); }
+  html.dark aside a[aria-current="page"] span.absolute { display: none; }
+  html.dark .tab-on { background-image: linear-gradient(135deg, #f06aa8, #8b5be0); }
+  html.dark main .bg-ink { background-image: radial-gradient(70% 90% at 100% 0%, rgba(255,150,170,.28), transparent 60%), linear-gradient(135deg, #8d2d73 0%, #5b2f9e 55%, #3b2a86 100%) !important; box-shadow: 0 26px 50px -22px rgba(139,91,224,.55); }
+  html.dark main .bg-ink .text-gold-300, html.dark main .bg-ink .text-gold-200 { color: #ffe2f1; }
+  html.dark main .bg-ink .gold-text { background-image: linear-gradient(180deg, #fff, #ffd9ec); }
+  html.dark main .bg-ink .text-neutral-400, html.dark main .bg-ink .text-neutral-500 { color: rgba(255,255,255,.8); }
+  html.dark .btn-gold { background-image: linear-gradient(135deg, #f6b86a, #e08fb0); color: #2b1a3a; }
+  html.dark .page-title::after { content: ''; display: block; width: 44px; height: 4px; margin-top: 6px; border-radius: 9px; background: linear-gradient(90deg, #f06aa8, #8b5be0); }
+  html.dark .th { background: rgba(255,255,255,.03); }
+}
 
 /* ======================= STYLE « VERRE » (mode clair) =======================
    Fond dégradé doux qui bouge lentement, barres latérales en verre dépoli, cartes translucides. */
