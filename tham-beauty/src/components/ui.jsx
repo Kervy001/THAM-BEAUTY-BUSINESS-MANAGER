@@ -210,7 +210,7 @@ export function Stat({ label, value, sub, tone, icon }) {
     <div className="card !p-4">
       <div className="flex items-start justify-between gap-2">
         <div className="text-[13px] leading-snug text-neutral-500">{label}</div>
-        {icon && <Icon name={icon} size={16} className="text-gold-500" />}
+        {icon && <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-blush-400 to-[#b774dc] text-white shadow-rose"><Icon name={icon} size={16} /></span>}
       </div>
       <div className={'mt-2 text-[1.35rem] font-semibold leading-tight tracking-tight ' + color}>{value}</div>
       {sub && <div className="mt-1 text-xs text-neutral-500">{sub}</div>}
@@ -249,7 +249,7 @@ export function PageHeader({ title, subtitle, children }) {
   return (
     <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h1 className="font-display text-[1.7rem] font-semibold leading-tight">{title}</h1>
+        <h1 className="page-title font-display text-[1.7rem] font-semibold leading-tight">{title}</h1>
         {subtitle && <div className="mt-0.5 text-sm text-neutral-500">{subtitle}</div>}
       </div>
       <div className="flex flex-wrap gap-2">{children}</div>
