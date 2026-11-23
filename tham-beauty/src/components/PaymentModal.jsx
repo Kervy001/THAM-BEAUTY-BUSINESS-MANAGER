@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useApp } from '../lib/store.jsx'
-import { paymentCredit } from '../lib/calc.js'
+import { convert, paymentCredit, round2 } from '../lib/calc.js'
+import CashChange, { changeFields, emptyChange } from './CashChange.jsx'
 import { METHODS, money, today, uid, nowIso } from '../lib/util.js'
 import { Input, Modal, NumberInput, Select, Notice } from './ui.jsx'
 import FundingPicker from './FundingPicker.jsx'
@@ -17,7 +18,19 @@ export default function PaymentModal({ title, opCurrency, opRate, remaining, ref
     rate: String(app.rate), method: 'Espèces', funding: [], reference: '', note: ''
   })
   const [busy, setBusy] = useState(false)
-  const set = (k) => (v) => setP({ ...p, [k]: v })
+  const [cc, setCc] = useState(() => (payment?.tendered > 0 ? { tendered: String(payment.tendered), changeCur: payment.change?.currency || '', changeAmt: payment.change ? String(payment.change.amount) : null } : emptyChange()))
+  const [auto, setAuto] = useState(!payment) // le montant suit la devise / le montant remis tant qu'on ne l'a pas modifié à la main
+  const remIn = (cur, rate) => (remaining > 0 ? round2(convert(remaining, opCurrency, cur, Number(rate) || app.rate)) : 0)
+  const set = (k) => (v) => {
+    if (k === 'amount') setAuto(false)
+    if (k === 'currency' && auto && !refund) return setP({ ...p, currency: v, amount: remaining > 0 ? String(remIn(v, p.rate)) : p.amount })
+    setP({ ...p, [k]: v })
+  }
+  const onCash = (v) => {
+    setCc(v)
+    const t = Number(v.tendered) || 0
+    if (auto && t > 0 && !refund) { const rem = remIn(p.currency, p.rate); setP({ ...p, amount: String(rem > 0 ? Math.min(t, rem) : t) }) }
+  }
   const credit = paymentCredit({ amount: p.amount, currency: p.currency, rate: p.rate }, opCurrency, opRate)
 
   async function submit(e) {
@@ -29,14 +42,16 @@ export default function PaymentModal({ title, opCurrency, opRate, remaining, ref
     if (funding && funding.reduce((t, f) => t + f.amount, 0) > Number(p.amount) + 0.005) return alert('Les montants des associés dépassent le paiement.')
     setBusy(true)
     try {
+      const cashPart = !refund && !withSource ? changeFields(cc, p.amount, p.currency, p.rate, p.method) : {}
       if (payment) {
-        await onSave({ ...payment, date: p.date, amount: Number(p.amount), currency: p.currency, rate: Number(p.rate), method: p.method, ...(withSource ? { funding, source: null } : {}), reference: p.reference, note: p.note, editedBy: app.profile?.name || '', editedAt: nowIso() })
+        const { tendered: _t, change: _c, ...basePay } = payment
+        await onSave({ ...basePay, ...cashPart, date: p.date, amount: Number(p.amount), currency: p.currency, rate: Number(p.rate), method: p.method, ...(withSource ? { funding, source: null } : {}), reference: p.reference, note: p.note, editedBy: app.profile?.name || '', editedAt: nowIso() })
         onClose()
         return
       }
       await onSave({
         id: uid(), type: refund ? 'refund' : 'payment', date: p.date, amount: Number(p.amount), currency: p.currency,
-        rate: Number(p.rate), method: p.method, ...(withSource ? { funding } : {}), reference: p.reference, note: p.note, status: 'valide',
+        rate: Number(p.rate), method: p.method, ...cashPart, ...(withSource ? { funding } : {}), reference: p.reference, note: p.note, status: 'valide',
         by: app.profile?.name || app.profile?.email || '', at: nowIso()
       })
       onClose()
@@ -52,6 +67,7 @@ export default function PaymentModal({ title, opCurrency, opRate, remaining, ref
           <Select label="Devise" value={p.currency} onChange={set('currency')} options={['USD', 'HTG']} />
         </div>
         <NumberInput label="Taux de ce paiement (HTG pour 1 USD)" value={p.rate} onChange={set('rate')} hint={`Taux général actuel : ${app.rate}. Modifiable : ce paiement garde son propre taux.`} />
+        {!refund && !withSource && p.method === 'Espèces' && (!payment || app.isAdmin || !payment.tendered) && <CashChange value={cc} onChange={onCash} amount={Number(p.amount) || 0} currency={p.currency} rate={Number(p.rate) || app.rate} />}
         {withSource && <FundingPicker value={p.funding} onChange={set('funding')} total={Number(p.amount) || 0} currency={p.currency} />}
         <Input label="Référence de transaction" value={p.reference} onChange={(e) => set('reference')(e.target.value)} />
         <Input label="Note" value={p.note} onChange={(e) => set('note')(e.target.value)} />
