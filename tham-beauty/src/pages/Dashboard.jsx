@@ -65,19 +65,88 @@ export function FilterBar({ F }) {
   )
 }
 
-function Bars({ data, cur }) {
+// Courbe des ventes nettes par jour : survol / toucher = détail du jour
+function SalesTrend({ data, cur }) {
   const fm = useMoney()
-  const entries = Object.entries(data).sort((a, b) => a[0].localeCompare(b[0])).slice(-14)
+  const [hi, setHi] = useState(null)
+  const entries = Object.entries(data).sort((a, b) => a[0].localeCompare(b[0])).slice(-31)
   if (!entries.length) return <Empty icon="chart">Aucune vente sur la période.</Empty>
+  const W = 600, H = 190, P = { l: 6, r: 6, t: 22, b: 22 }
   const max = Math.max(...entries.map((e) => e[1]), 1)
+  const x = (i) => P.l + (entries.length === 1 ? (W - P.l - P.r) / 2 : (i / (entries.length - 1)) * (W - P.l - P.r))
+  const y = (v) => P.t + (1 - v / max) * (H - P.t - P.b)
+  const pts = entries.map(([, v], i) => [x(i), y(v)])
+  // courbe lissée (Catmull-Rom → Bézier)
+  const path = pts.map((p, i) => {
+    if (i === 0) return `M${p[0]},${p[1]}`
+    const p0 = pts[i - 2] || pts[i - 1], p1 = pts[i - 1], p3 = pts[i + 1] || p
+    const c1 = [p1[0] + (p[0] - p0[0]) / 6, p1[1] + (p[1] - p0[1]) / 6], c2 = [p[0] - (p3[0] - p1[0]) / 6, p[1] - (p3[1] - p1[1]) / 6]
+    return `C${c1[0]},${c1[1]} ${c2[0]},${c2[1]} ${p[0]},${p[1]}`
+  }).join(' ')
+  const area = `${path} L${pts[pts.length - 1][0]},${H - P.b} L${pts[0][0]},${H - P.b} Z`
+  const move = (e) => {
+    const r = e.currentTarget.getBoundingClientRect()
+    const rel = ((e.clientX - r.left) / r.width) * W
+    let best = 0
+    pts.forEach((p, i) => { if (Math.abs(p[0] - rel) < Math.abs(pts[best][0] - rel)) best = i })
+    setHi(best)
+  }
+  const k = hi != null ? hi : entries.length - 1
+  const [hd, hv] = entries[k]
+  const lx = Math.min(Math.max(pts[k][0], 80), W - 80)
   return (
-    <div className="flex h-40 items-end gap-2">
-      {entries.map(([d, v]) => (
-        <div key={d} className="group flex h-full min-w-0 max-w-[64px] flex-1 flex-col items-center justify-end" title={`${fdate(d)} : ${fm(v, cur)}`}>
-          <div className="w-full rounded-t-lg bg-gradient-to-t from-[#9b6bdc] to-blush-400 transition group-hover:from-[#7c4fc4] group-hover:to-blush-500 group-hover:shadow-rose" style={{ height: `${Math.max(5, (v / max) * 100)}%` }} />
-          <div className="mt-1.5 text-[10px] text-neutral-400">{new Date(d).getDate()}/{new Date(d).getMonth() + 1}</div>
-        </div>
-      ))}
+    <div className="relative">
+      <svg viewBox={`0 0 ${W} ${H}`} className="h-44 w-full touch-pan-y" onPointerMove={move} onPointerDown={move} onPointerLeave={() => setHi(null)} role="img" aria-label="Ventes nettes par jour">
+        <defs><linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#9b6bdc" stopOpacity=".38" /><stop offset="1" stopColor="#9b6bdc" stopOpacity="0" /></linearGradient>
+          <linearGradient id="trendLine" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stopColor="#f06aa8" /><stop offset="1" stopColor="#9b6bdc" /></linearGradient></defs>
+        {[0.25, 0.5, 0.75].map((f) => <line key={f} x1={P.l} x2={W - P.r} y1={P.t + f * (H - P.t - P.b)} y2={P.t + f * (H - P.t - P.b)} stroke="currentColor" strokeOpacity=".08" strokeDasharray="4 5" />)}
+        <path d={area} fill="url(#trendFill)" />
+        <path d={path} fill="none" stroke="url(#trendLine)" strokeWidth="3" strokeLinecap="round" />
+        <line x1={pts[k][0]} x2={pts[k][0]} y1={P.t} y2={H - P.b} stroke="#9b6bdc" strokeOpacity=".35" strokeDasharray="3 4" />
+        <circle cx={pts[k][0]} cy={pts[k][1]} r="6" fill="#fff" stroke="#9b6bdc" strokeWidth="3" />
+        <text x={P.l} y={H - 5} fontSize="11" fill="currentColor" fillOpacity=".5">{fdate(entries[0][0])}</text>
+        <text x={W - P.r} y={H - 5} fontSize="11" textAnchor="end" fill="currentColor" fillOpacity=".5">{fdate(entries[entries.length - 1][0])}</text>
+      </svg>
+      <div className="pointer-events-none absolute top-0 -translate-x-1/2 rounded-xl bg-white px-2.5 py-1 text-xs shadow-lg ring-1 ring-black/5 dark:bg-neutral-800" style={{ left: `${(lx / W) * 100}%` }}>
+        <span className="text-neutral-500">{fdate(hd)} · </span><b>{fm(hv, cur)}</b>
+      </div>
+    </div>
+  )
+}
+
+// Répartition des dépenses de la période par catégorie (barre segmentée)
+const SEG = ['#f06aa8', '#9b6bdc', '#f6b86a', '#6bc5b8', '#7aa7f0', '#c9b3f0']
+function ExpenseSplit({ expenses, cur, range }) {
+  const fm = useMoney()
+  const rows = useMemo(() => {
+    const [a, b] = range
+    const by = {}
+    for (const e of expenses) {
+      if (e.status === 'annule' || !e.date) continue
+      const d = new Date(e.date + 'T12:00:00')
+      if (a && d < a) continue
+      if (b && d > b) continue
+      by[e.category || 'Autres'] = (by[e.category || 'Autres'] || 0) + convert(e.amount, e.currency, cur, e.rate)
+    }
+    const all = Object.entries(by).filter(([, v]) => v > 0).sort((x, y) => y[1] - x[1])
+    const top = all.slice(0, 5)
+    const rest = all.slice(5).reduce((s, [, v]) => s + v, 0)
+    if (rest > 0) top.push(['Autres', rest])
+    return top
+  }, [expenses, cur, range])
+  const total = rows.reduce((s, [, v]) => s + v, 0)
+  if (!total) return <div className="text-sm text-neutral-500">Aucune dépense sur la période.</div>
+  return (
+    <div>
+      <div className="text-2xl font-bold">{fm(total, cur)}</div>
+      <div className="my-3 flex h-8 overflow-hidden rounded-xl bg-neutral-100 dark:bg-white/10">
+        {rows.map(([n, v], i) => <div key={n} title={`${n} : ${fm(v, cur)}`} style={{ width: `${(v / total) * 100}%`, background: SEG[i % SEG.length] }} />)}
+      </div>
+      <div className="space-y-1.5">
+        {rows.map(([n, v], i) => (
+          <div key={n} className="flex items-center gap-2 text-sm"><span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: SEG[i % SEG.length] }} /><span className="truncate">{n}</span><span className="ml-auto font-medium">{fm(v, cur)}</span><span className="w-10 text-right text-xs text-neutral-500">{Math.round((v / total) * 100)}%</span></div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -93,6 +162,14 @@ function DashboardInner({ hidden, toggle }) {
   const F = useFilters()
   const fin = app.can('finance.read')
   const m = useMemo(() => computeMetrics({ D: app.D, costing: app.costing, ref: app.ref, rate: app.rate, settings: app.settings }, { range: F.range, ...F.flt }), [app.D, app.costing, app.ref, app.rate, app.settings, F.range, F.flt])
+  // Période précédente de même durée (pour la flèche ▲ / ▼)
+  const prev = useMemo(() => {
+    const [a, b] = F.range
+    if (F.period === 'tout' || !a || !b) return null
+    const len = b - a
+    const pb = new Date(a.getTime() - 1), pa = new Date(a.getTime() - len - 1)
+    try { return computeMetrics({ D: app.D, costing: app.costing, ref: app.ref, rate: app.rate, settings: app.settings }, { range: [pa, pb], ...F.flt }).net } catch { return null }
+  }, [app.D, app.costing, app.ref, app.rate, app.settings, F.range, F.flt, F.period])
   const r = app.ref
   const fund = useMemo(() => (app.isAdmin ? fundSummary(app.D, app.costing, app.ref, fundConfig(app.settings)) : null), [app.isAdmin, app.D, app.costing, app.ref, app.settings])
   const recentSales = [...app.D.sales].sort((a, b) => (b.createdAt || b.date || '').localeCompare(a.createdAt || a.date || '')).slice(0, 5)
@@ -129,7 +206,13 @@ function DashboardInner({ hidden, toggle }) {
         </Link>
       )}
 
-      <div className="card mb-5"><div className="mb-3 font-display text-base font-semibold">Ventes nettes par jour</div><div className={hidden ? 'pointer-events-none select-none opacity-60 blur-[5px]' : ''}><Bars data={m.byDay} cur={r} /></div></div>
+      <div className="mb-5 grid gap-4 lg:grid-cols-3">
+        <div className={'card ' + (fin ? 'lg:col-span-2' : 'lg:col-span-3')}>
+          <div className="mb-1 flex items-center justify-between"><div className="font-display text-base font-semibold">Ventes nettes par jour</div>{prev != null && prev > 0 && <span className={'rounded-lg px-2 py-0.5 text-xs font-semibold ' + (m.net >= prev ? 'bg-emerald-50 text-emerald-700' : 'bg-blush-50 text-blush-600')}>{m.net >= prev ? '▲' : '▼'} {Math.abs(Math.round(((m.net - prev) / prev) * 100))} % vs période précédente</span>}</div>
+          <div className={hidden ? 'pointer-events-none select-none opacity-60 blur-[5px]' : ''}><SalesTrend data={m.byDay} cur={r} /></div>
+        </div>
+        {fin && <div className="card"><div className="mb-2 font-display text-base font-semibold">Répartition des dépenses</div><div className={hidden ? 'pointer-events-none select-none opacity-60 blur-[5px]' : ''}><ExpenseSplit expenses={app.D.expenses} cur={r} range={F.range} /></div></div>}
+      </div>
 
       <div className="mb-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <Ledger title="Ventes">
