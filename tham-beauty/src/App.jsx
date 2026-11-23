@@ -6,6 +6,7 @@ import { roleLabel } from './lib/perms.js'
 import { useTheme } from './lib/theme.js'
 import NotificationBell from './components/Notifications.jsx'
 import GlobalSearch from './components/GlobalSearch.jsx'
+import { useWedgeScanner } from './lib/wedge.js'
 import { LockScreen, PinRequired } from './components/LockScreen.jsx'
 import { useAutoLock } from './lib/useAutoLock.js'
 import Logo from './components/Logo.jsx'
@@ -147,6 +148,12 @@ export default function App() {
   const [open, setOpen] = useState(false)
   const loc = useLocation()
   const navigate = useNavigate()
+  // Un scan du code-barres d'un reçu (douchette USB / Bluetooth) ouvre la vente, depuis n'importe quelle page
+  useWedgeScanner((code) => {
+    const c = String(code || '').trim().toUpperCase()
+    const sale = c && app.D.sales.find((x) => String(x.number || '').toUpperCase() === c)
+    if (sale) { navigate(`/ventes/${sale.id}`); app.notify(`✓ Vente ${sale.number}`) }
+  }, !!app.profile)
   const theme = useTheme()
 
   // Accès aux pages : même règle que le menu (autorisations du compte). Une page non autorisée renvoie vers la première page permise.
