@@ -7,6 +7,7 @@ import { useTheme } from './lib/theme.js'
 import NotificationBell from './components/Notifications.jsx'
 import GlobalSearch from './components/GlobalSearch.jsx'
 import { useWedgeScanner } from './lib/wedge.js'
+import { findSaleByCode } from './lib/codes.js'
 import { LockScreen, PinRequired } from './components/LockScreen.jsx'
 import { useAutoLock } from './lib/useAutoLock.js'
 import Logo from './components/Logo.jsx'
@@ -150,8 +151,7 @@ export default function App() {
   const navigate = useNavigate()
   // Un scan du code-barres d'un reçu (douchette USB / Bluetooth) ouvre la vente, depuis n'importe quelle page
   useWedgeScanner((code) => {
-    const c = String(code || '').trim().toUpperCase()
-    const sale = c && app.D.sales.find((x) => String(x.number || '').toUpperCase() === c)
+    const sale = findSaleByCode(code, app.D.sales)
     if (sale) { navigate(`/ventes/${sale.id}`); app.notify(`✓ Vente ${sale.number}`) }
   }, !!app.profile)
   const theme = useTheme()

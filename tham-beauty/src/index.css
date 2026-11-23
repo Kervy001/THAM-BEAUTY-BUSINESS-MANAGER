@@ -184,6 +184,12 @@ main .card:nth-child(4) { animation-delay: .15s; } main .card:nth-child(5) { ani
   html.dark main .bg-ink .text-neutral-400, html.dark main .bg-ink .text-neutral-500 { color: rgba(255,255,255,.8); }
   html.dark .btn-gold { background-image: linear-gradient(135deg, #f6b86a, #e08fb0); color: #2b1a3a; }
   html.dark .page-title::after { content: ''; display: block; width: 44px; height: 4px; margin-top: 6px; border-radius: 9px; background: linear-gradient(90deg, #f06aa8, #8b5be0); }
+  /* le reçu / la facture restent toujours blancs avec une écriture noire */
+  html.dark .print-area { background: #fff !important; color: #111 !important; border-color: #ddd !important; box-shadow: none !important; }
+  html.dark .print-area * { color: #111 !important; border-color: #ddd !important; --tw-ring-color: #ddd !important; background-color: transparent !important; }
+  html.dark .print-area .text-neutral-500, html.dark .print-area .text-neutral-400, html.dark .print-area .text-neutral-600 { color: #555 !important; }
+  html.dark .print-area table, html.dark .print-area tr, html.dark .print-area th { background-color: transparent !important; }
+  html.dark .print-area img { filter: none !important; }
   html.dark .th { background: rgba(255,255,255,.03); }
 }
 
