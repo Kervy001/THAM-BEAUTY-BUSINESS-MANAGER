@@ -146,8 +146,8 @@ export async function receiptPng(m, { cols = 32, logoUrl = '', logoPx = 150 } = 
     y += lh
   }
   if (bw.length) {
-    const quiet = 10, total = bw.reduce((a, b) => a + b, 0) + quiet * 2
-    const mod = Math.max(1, Math.floor((W - pad * 2) / total))
+    const quiet = 6, total = bw.reduce((a, b) => a + b, 0) + quiet * 2
+    const mod = Math.min(4, (W - pad * 2) / total)
     let x = (W - total * mod) / 2 + quiet * mod
     y += 10
     bw.forEach((wd, i) => { if (i % 2 === 0) c.fillRect(Math.round(x), y, wd * mod, 60); x += wd * mod })
