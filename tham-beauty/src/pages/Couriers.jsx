@@ -38,6 +38,20 @@ export default function Couriers() {
     return { groups, total, all: g }
   }, [app.D.sales, app.settings.couriers, from, to])
 
+  // Payer un livreur : marque comme « remis » toutes ses livraisons non remises de la période affichée, avec la date du paiement.
+  const [paying, setPaying] = useState('')
+  async function payAll(x) {
+    const due = x.rows.filter((s) => !s.deliveryFee.remittedAt)
+    if (!due.length || !app.can('sales.write')) return
+    const date = window.prompt(`Payer ${x.name} : ${fmt(x.due)} pour ${due.length} livraison(s).\nDate du paiement (AAAA-MM-JJ) :`, today())
+    if (!date) return
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { app.notify('Date invalide (format AAAA-MM-JJ).', 'error'); return }
+    setPaying(x.key)
+    try {
+      for (const s of due) await app.save('sales', s.id, { deliveryFee: { ...s.deliveryFee, remittedAt: date } }, 'frais de livraison remis')
+      app.notify(`Paiement de ${x.name} enregistré ✓`)
+    } finally { setPaying('') }
+  }
   async function toggle(s) {
     const f = s.deliveryFee
     const next = { ...f }
@@ -71,6 +85,9 @@ export default function Couriers() {
           </button>
           {open === x.key && (
             <div className="mt-2">
+              {app.can('sales.write') && Object.keys(x.due).some((c) => x.due[c] > 0) && (
+                <button className="btn-primary mb-3 w-full sm:w-auto" disabled={paying === x.key} onClick={() => payAll(x)}>{paying === x.key ? '…' : `Payer ${x.name} (${fmt(x.due)})`}</button>
+              )}
               <Table head={['Date', 'Vente', 'Client', 'Frais', 'Statut']}>
                 {x.rows.map((s) => (
                   <tr key={s.id}>
@@ -82,10 +99,29 @@ export default function Couriers() {
                   </tr>
                 ))}
               </Table>
+              <History rows={x.rows} />
             </div>
           )}
         </div>
       ))}
     </>
+  )
+}
+
+// Historique des paiements d'un livreur : une ligne par date de remise
+function History({ rows }) {
+  const byDate = {}
+  rows.filter((s) => s.deliveryFee.remittedAt).forEach((s) => {
+    const d = s.deliveryFee.remittedAt
+    byDate[d] = byDate[d] || { n: 0, tot: {} }
+    byDate[d].n++; addTo(byDate[d].tot, s.deliveryFee.currency, Number(s.deliveryFee.amount))
+  })
+  const list = Object.entries(byDate).sort((a, b) => b[0].localeCompare(a[0]))
+  if (!list.length) return null
+  return (
+    <div className="mt-3 rounded-2xl bg-neutral-50 p-3 text-sm dark:bg-white/5">
+      <div className="mb-1 font-medium">Paiements au livreur</div>
+      {list.map(([d, v]) => <div key={d} className="flex justify-between border-b border-line/60 py-1 last:border-0"><span>{fdate(d)} · {v.n} livraison(s)</span><b>{fmt(v.tot)}</b></div>)}
+    </div>
   )
 }
