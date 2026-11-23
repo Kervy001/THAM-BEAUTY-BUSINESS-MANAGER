@@ -175,11 +175,20 @@ main .card:nth-child(4) { animation-delay: .15s; } main .card:nth-child(5) { ani
    Fond dégradé doux qui bouge lentement, barres latérales en verre dépoli, cartes translucides. */
 @media screen {
   html:not(.dark) body::before { content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none; background-size: 140% 140%;
-    background: radial-gradient(40% 40% at 12% 15%, rgba(255,122,184,.28), transparent 70%), radial-gradient(38% 38% at 88% 20%, rgba(139,123,255,.22), transparent 70%), radial-gradient(40% 40% at 80% 90%, rgba(255,184,138,.28), transparent 70%), radial-gradient(35% 35% at 8% 88%, rgba(200,107,216,.18), transparent 70%);
+    background: radial-gradient(40% 40% at 12% 15%, rgba(255,122,184,.42), transparent 70%), radial-gradient(38% 38% at 88% 20%, rgba(139,123,255,.34), transparent 70%), radial-gradient(40% 40% at 80% 90%, rgba(255,184,138,.42), transparent 70%), radial-gradient(35% 35% at 8% 88%, rgba(200,107,216,.30), transparent 70%);
     animation: mesh-drift 22s ease-in-out infinite alternate; }
   html:not(.dark) aside { background: rgba(255,255,255,.6); backdrop-filter: blur(22px) saturate(1.3); -webkit-backdrop-filter: blur(22px) saturate(1.3); border-color: rgba(255,255,255,.7); }
   html:not(.dark) header.sticky { background: rgba(255,255,255,.65); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
   html:not(.dark) nav.fixed { background: rgba(255,255,255,.72); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-color: rgba(255,255,255,.7); }
+  /* grands bandeaux (anciennement noirs) : dégradé rose → violet, textes clairs */
+  html:not(.dark) main .bg-ink { background-image: radial-gradient(70% 90% at 100% 0%, rgba(255,205,150,.5), transparent 60%), radial-gradient(60% 80% at 0% 100%, rgba(255,255,255,.14), transparent 60%), linear-gradient(135deg, #e4579a 0%, #a35bd0 55%, #6f5be0 100%) !important; box-shadow: 0 26px 50px -22px rgba(163,91,208,.6); }
+  html:not(.dark) main .bg-ink .text-neutral-400, html:not(.dark) main .bg-ink .text-neutral-500 { color: rgba(255,255,255,.85); }
+  html:not(.dark) main .bg-ink .text-gold-300, html:not(.dark) main .bg-ink .text-gold-200 { color: #fff3d6; }
+  html:not(.dark) main .bg-ink .gold-text { background-image: linear-gradient(180deg, #fff, #ffe7b0); }
+  html:not(.dark) main .bg-ink [class*="bg-white/"] { background-color: rgba(255,255,255,.16); --tw-ring-color: rgba(255,255,255,.28); }
+  html:not(.dark) main .bg-ink .text-emerald-300 { color: #c9ffe6; } html:not(.dark) main .bg-ink .text-blush-400, html:not(.dark) main .bg-ink [class*="text-blush-4"] { color: #fff; }
+  html:not(.dark) .page-title::after { content: ''; display: block; width: 44px; height: 4px; margin-top: 6px; border-radius: 9px; background: linear-gradient(90deg, #f47aa8, #b774dc); }
+  html:not(.dark) a.card:hover, html:not(.dark) button.card:hover { transform: translateY(-3px); box-shadow: 0 22px 40px -22px rgba(163,91,208,.45); }
   html:not(.dark) aside a[aria-current="page"] { background: linear-gradient(135deg, rgba(244,122,168,.20), rgba(183,116,220,.18)); }
 }
 @keyframes mesh-drift { from { background-position: 0% 0%; } to { background-position: 100% 100%; } }
