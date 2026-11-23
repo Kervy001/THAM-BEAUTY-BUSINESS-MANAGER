@@ -384,6 +384,7 @@ export function SaleDetail() {
   const [btBusy, setBtBusy] = useState(false)
   const [printFail, setPrintFail] = useState(null)
   const [feeDlg, setFeeDlg] = useState(false)
+  const [modes, setModes] = useState(false)
   // Format par défaut selon le document (Réglages → Logo & documents) ; le réglage propre à l'appareil (Matériel) passe devant pour le reçu
   const docFormat = (d) => (d === 'recu' ? getPrintPrefs().receipt || app.settings?.print?.recu || app.settings?.receipt?.format || 'a4' : app.settings?.print?.facture || 'a4')
   const manualFmt = useRef(false)
@@ -488,21 +489,21 @@ export function SaleDetail() {
         </select>
         <button className="btn-ghost no-print" onClick={() => { showDoc('facture'); printSoon() }}><Icon name="printer" size={16} />Facture</button>
         <button className="btn-primary no-print" disabled={btBusy} onClick={() => printSmart()}><Icon name="printer" size={16} />{btBusy ? 'Envoi…' : 'Imprimer le reçu'}</button>
-        <details className="no-print relative">
-          <summary className="btn-ghost cursor-pointer list-none">Autres modes ▾</summary>
-          <div onClick={(e) => e.currentTarget.parentElement.removeAttribute('open')} className="fixed inset-x-4 bottom-20 z-50 flex flex-col gap-2 rounded-2xl border border-line bg-white p-4 shadow-2xl sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:mt-1 sm:w-72 sm:p-3">
-            <div className="px-1 text-xs font-medium uppercase tracking-wide text-neutral-500">Autres modes d’impression</div>
-            <button className="btn-ghost justify-start !py-2.5 text-left" onClick={() => printSmart('dialog')}>Fenêtre d’impression</button>
-            <button className="btn-ghost justify-start !py-2.5 text-left" onClick={() => printSmart('usb', true)}>Câble USB (choisir l’imprimante)</button>
-            <button className="btn-ghost justify-start !py-2.5 text-left" onClick={() => printSmart('bt', true)}>Bluetooth (choisir l’imprimante)</button>
-            <button className="btn-ghost justify-start !py-2.5 text-left" onClick={() => printSmart('rawbt')}>RawBT (Android)</button>
-            <button className="btn-ghost justify-start !py-2.5 text-left" onClick={() => printSmart('share')}>Partager en image</button>
-          </div>
-        </details>
+        <button className="btn-ghost no-print" onClick={() => setModes(true)}>Autres modes ▾</button>
         <Link className="btn-ghost no-print" to={`/ventes/${s.id}/colis`}><Icon name="package" size={16} />Étiquette colis</Link>
         <a className="btn-gold no-print" target="_blank" rel="noopener noreferrer" aria-label="Envoyer par WhatsApp"
           href={waLink(app.D.customers.find((c) => c.id === s.customerId)?.phone, saleMessage(s, r, app.settings.company, 'facture'), app.settings.whatsappCC)}>WhatsApp</a>
       </PageHeader>
+      {modes && (
+        <Modal title="Autres modes d’impression" onClose={() => setModes(false)}>
+          <div className="flex flex-col gap-2">
+            {[['dialog', 'Fenêtre d’impression (AirPrint, PDF, imprimante du système)'], ['usb', 'Câble USB (choisir l’imprimante)', true], ['bt', 'Bluetooth BLE (choisir l’imprimante) — Chrome Android, Bluefy iPhone', true], ['rawbt', 'RawBT (Android)'], ['share', 'Envoyer à une autre application (image) — iPhone & Android']].map(([m, label, pick]) => (
+              <button key={m} className="btn-ghost justify-start !py-3 text-left" onClick={() => { setModes(false); printSmart(m, !!pick) }}>{label}</button>
+            ))}
+            <p className="text-xs text-neutral-500">iPhone : « Envoyer à une autre application » ouvre le menu de partage ; choisissez l’application de votre imprimante (ou AirPrint / Imprimer). Le Bluetooth direct sur iPhone demande le navigateur Bluefy.</p>
+          </div>
+        </Modal>
+      )}
       {printFail && (
         <div className="no-print mb-3"><Notice tone="red">
           <div className="font-medium">L’impression n’a pas abouti ({printFail.caps ? OS_LABEL[printFail.caps.os] : ''})</div>
