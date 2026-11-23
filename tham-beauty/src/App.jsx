@@ -249,7 +249,7 @@ export default function App() {
         <nav className="flex-1 space-y-5">
           {groups.map((g) => (
             <div key={g.title}>
-              <div className="mb-1.5 px-3 text-xs font-medium text-neutral-500">{g.title}</div>
+              <div className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-400">{g.title}</div>
               <div className="space-y-0.5">{g.items.map(navLink)}</div>
             </div>
           ))}
