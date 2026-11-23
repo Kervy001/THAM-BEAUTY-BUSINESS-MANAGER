@@ -20,7 +20,7 @@ import { logoDots, logoRaster } from '../lib/escposLogo.js'
 import { OS_LABEL, capabilities, chooseMethod, friendlyError, sendDirect, shareReceipt } from '../lib/printer.js'
 import { colsFor, receiptToEscpos } from '../lib/escpos.js'
 import { reminderMessage, saleMessage, waLink } from '../lib/whatsapp.js'
-import { lookupCode, stockMatchesFor } from '../lib/codes.js'
+import { findSaleByCode, findSaleByShort, lookupCode, saleCode, stockMatchesFor } from '../lib/codes.js'
 import { allocateForSale, bundleCandidates } from '../lib/bundles.js'
 
 // Articles réellement en stock (reçus et non épuisés), quel que soit le statut du projet (sauf archivé).
@@ -38,7 +38,7 @@ export function stockOptionsOf(projects, sales, include, locId, firstLoc) {
 
 // Scan du code-barres d'un reçu (douchette USB / Bluetooth ou caméra) → ouvre la vente correspondante
 export function useOpenSaleByScan(app, nav) {
-  const find = (code) => { const c = String(code || '').trim().toUpperCase(); return app.D.sales.find((x) => String(x.number || '').toUpperCase() === c) }
+  const find = (code) => findSaleByCode(code, app.D.sales)
   return (code) => {
     const sale = find(code)
     if (!sale) return { ok: false, text: `Aucune vente avec le code ${code}` }
@@ -66,7 +66,7 @@ export function Sales() {
       </PageHeader>
       {scanSale && <Scanner title="Scanner le code d’un reçu" onDetect={(c) => { const r = openByScan(c); if (r.ok) setScanSale(false); return r.text }} onClose={() => setScanSale(false)} />}
       <div className="mb-3 flex flex-wrap gap-2">
-        <input className="input !w-56" placeholder="N°, client ou vendeur…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input className="input !w-56" placeholder="N° (ex. 142), client ou vendeur…" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { const hit = findSaleByShort(q, app.D.sales) || findSaleByCode(q, app.D.sales); if (hit) nav(`/ventes/${hit.id}`) } }} />
         <select className="input !w-auto" value={ps} onChange={(e) => setPs(e.target.value)}>
           <option value="">Tous les paiements</option>
           {['impaye', 'partiel', 'paye', 'trop_percu'].map((k) => <option key={k} value={k}>{PAY_STATUS[k]}</option>)}
@@ -420,6 +420,25 @@ export function SaleDetail() {
   const canPay = app.can('sales.pay')
   // Impression directe du reçu sur une imprimante thermique (ESC/POS) par Bluetooth ou câble USB, sans passer par la fenêtre d'impression
   // Impression intelligente du reçu : choisit le meilleur mode pour cet appareil, et propose des solutions si ça échoue
+  function buildModel() {
+    const m = (x) => money(x, s.currency)
+    const model = {
+      company: { name: co.name, address: co.address, phone: co.phone }, docTitle: 'Reçu de paiement', number: s.number, date: fdate(s.date) + (saleTime(s) ? ' ' + saleTime(s) : ''), barcodeText: saleCode(s.number), barcodeLabel: s.number, customer: s.customerName, seller: sellerOf(s),
+      lines: r.lines.map((p) => ({ label: p.l.label, qty: p.qty, unit: m(p.l.unitPrice), total: m(p.net), disc: p.lineDisc + p.globalShare > 0 ? m(p.lineDisc + p.globalShare) : '', returned: p.l.qtyReturned > 0 ? p.l.qtyReturned : 0 })),
+      totals: [['Montant brut', m(r.gross)], ...(r.totalDiscount > 0 ? [['Réductions', '-' + m(r.totalDiscount)]] : []), ['Net', m(r.net), true], ...(r.net !== r.netKept ? [['Après retours', m(r.netKept)]] : []), ['Payé', m(r.paid)], ['Solde', m(r.balance), true], ...(s.deliveryFee?.amount > 0 ? [['Livraison (à part)', money(s.deliveryFee.amount, s.deliveryFee.currency)]] : [])],
+      payments: (s.payments || []).filter((p) => p.status !== 'annule').map((p) => `${fdate(p.date)} - ${p.type === 'refund' ? 'Remboursement' : 'Paiement'} ${money(p.amount, p.currency)} (${p.method})` + (p.tendered > 0 && p.change ? ` Reçu ${money(p.tendered, p.currency)}, monnaie rendue ${money(p.change.amount, p.change.currency)}` : '')),
+      note: `Taux : 1 USD = ${s.rate} HTG`, footer: co.footer
+    }
+    return model
+  }
+  // WhatsApp : on envoie l'IMAGE du reçu (menu de partage du téléphone) et non du texte
+  async function sendWhatsApp() {
+    try {
+      const phone = app.D.customers.find((c) => c.id === s.customerId)?.phone
+      const how = await shareReceipt(buildModel(), { cols: 36, logoUrl: rc.showLogo ? receiptLogo(app.settings) : '', text: `Reçu ${s.number} — ${co.name}` })
+      if (how !== 'partagé') { window.open(waLink(phone, `Bonjour, voici votre reçu ${s.number} (image jointe).`, app.settings.whatsappCC), '_blank', 'noopener'); app.notify('Image téléchargée : joignez-la dans la conversation WhatsApp.') }
+    } catch (e) { if (e?.name !== 'AbortError') app.notify('Partage impossible : ' + (e?.message || e), 'error') }
+  }
   async function printSmart(force, pick = false) {
     if (btBusy) return
     const P = getPrintPrefs()
@@ -427,14 +446,7 @@ export function SaleDetail() {
     const method = force || chooseMethod(P, caps)
     setPrintFail(null)
     if (method === 'dialog') { showDoc('recu'); printSoon(); return }
-    const m = (x) => money(x, s.currency)
-    const model = {
-      company: { name: co.name, address: co.address, phone: co.phone }, docTitle: 'Reçu de paiement', number: s.number, date: fdate(s.date) + (saleTime(s) ? ' ' + saleTime(s) : ''), barcodeText: s.number, customer: s.customerName, seller: sellerOf(s),
-      lines: r.lines.map((p) => ({ label: p.l.label, qty: p.qty, unit: m(p.l.unitPrice), total: m(p.net), disc: p.lineDisc + p.globalShare > 0 ? m(p.lineDisc + p.globalShare) : '', returned: p.l.qtyReturned > 0 ? p.l.qtyReturned : 0 })),
-      totals: [['Montant brut', m(r.gross)], ...(r.totalDiscount > 0 ? [['Réductions', '-' + m(r.totalDiscount)]] : []), ['Net', m(r.net), true], ...(r.net !== r.netKept ? [['Après retours', m(r.netKept)]] : []), ['Payé', m(r.paid)], ['Solde', m(r.balance), true], ...(s.deliveryFee?.amount > 0 ? [['Livraison (à part)', money(s.deliveryFee.amount, s.deliveryFee.currency)]] : [])],
-      payments: (s.payments || []).filter((p) => p.status !== 'annule').map((p) => `${fdate(p.date)} - ${p.type === 'refund' ? 'Remboursement' : 'Paiement'} ${money(p.amount, p.currency)} (${p.method})` + (p.tendered > 0 && p.change ? ` Reçu ${money(p.tendered, p.currency)}, monnaie rendue ${money(p.change.amount, p.change.currency)}` : '')),
-      note: `Taux : 1 USD = ${s.rate} HTG`, footer: co.footer
-    }
+    const model = buildModel()
     const cols = Number(P.btCols) || colsFor(fmt === 'a4' ? 'ticket58' : fmt, receiptWidth(fmt, P))
     setBtBusy(true)
     try {
@@ -448,7 +460,7 @@ export function SaleDetail() {
           try { logo = await logoRaster(receiptLogo(app.settings), { widthDots: logoDots(cols, rc.logoWidth) }) } catch { app.notify('Logo non imprimé (image illisible).', 'error') }
         }
         let barcode
-        try { barcode = barcodeRaster(s.number, { widthDots: logoDots(cols, 300) }) } catch { barcode = null }
+        try { barcode = barcodeRaster(saleCode(s.number), { widthDots: logoDots(cols, 300) }) } catch { barcode = null }
         await sendDirect(method, receiptToEscpos(model, { cols, accents: !!P.btAccents, cut: !!P.btCut, feed: Number(P.btFeed) || 0, logo, barcode }), { pick })
         setPrintPrefs({ lastOk: method })
         app.notify(method === 'rawbt' ? 'Reçu envoyé à RawBT ✓ (si rien ne sort : installez RawBT et associez l’imprimante)' : 'Reçu envoyé à l’imprimante ✓')
@@ -491,8 +503,7 @@ export function SaleDetail() {
         <button className="btn-primary no-print" disabled={btBusy} onClick={() => printSmart()}><Icon name="printer" size={16} />{btBusy ? 'Envoi…' : 'Imprimer le reçu'}</button>
         <button className="btn-ghost no-print" onClick={() => setModes(true)}>Autres modes ▾</button>
         <Link className="btn-ghost no-print" to={`/ventes/${s.id}/colis`}><Icon name="package" size={16} />Étiquette colis</Link>
-        <a className="btn-gold no-print" target="_blank" rel="noopener noreferrer" aria-label="Envoyer par WhatsApp"
-          href={waLink(app.D.customers.find((c) => c.id === s.customerId)?.phone, saleMessage(s, r, app.settings.company, 'facture'), app.settings.whatsappCC)}>WhatsApp</a>
+        <button type="button" className="btn-gold no-print" aria-label="Envoyer le reçu par WhatsApp" onClick={sendWhatsApp}>WhatsApp</button>
       </PageHeader>
       {modes && (
         <Modal title="Autres modes d’impression" onClose={() => setModes(false)}>
@@ -592,7 +603,7 @@ export function SaleDetail() {
           </div>
         )}
         <div className="mt-6 text-center text-xs text-neutral-500">{co.footer}</div>
-        <div className="mx-auto mt-4 w-full max-w-[420px] px-2 text-center"><Barcode value={s.number} height={64} /><div className="text-[11px] tracking-widest">{s.number}</div></div>
+        <div className="mx-auto mt-4 w-full max-w-[420px] px-2 text-center"><Barcode value={saleCode(s.number)} height={64} /><div className="text-[11px] tracking-widest">{s.number}</div></div>
       </div>
 
       <div className="no-print space-y-3">
