@@ -286,7 +286,7 @@ export function Tabs({ tabs, value, onChange }) {
   return (
     <div className="no-scrollbar mb-5 flex gap-1 overflow-x-auto rounded-2xl bg-white p-1 ring-1 ring-line">
       {tabs.map((t) => (
-        <button key={t} onClick={() => onChange(t)} className={'whitespace-nowrap rounded-xl px-3.5 py-2 text-sm font-medium transition ' + (value === t ? 'bg-gradient-to-b from-blush-400 to-blush-600 text-white shadow-rose' : 'text-neutral-500 hover:text-neutral-900')}>{t}</button>
+        <button key={t} onClick={() => onChange(t)} className={'whitespace-nowrap rounded-xl px-3.5 py-2 text-sm font-medium transition ' + (value === t ? 'tab-on text-white' : 'text-neutral-500 hover:text-neutral-900')}>{t}</button>
       ))}
     </div>
   )
