@@ -1,12 +1,10 @@
-import { useApp } from '../lib/store.jsx'
 import { changeFor } from '../lib/cashflow.js'
 import { money } from '../lib/util.js'
 import { NumberInput, Select } from './ui.jsx'
 
 // Espèces : montant remis par le client → monnaie à rendre. La devise de la monnaie suit celle du paiement (modifiable par le vendeur) ;
-// le montant calculé n'est modifiable que par l'administrateur.
+// le montant calculé se met à jour tout seul, mais chaque vendeur peut le corriger (la correction est notée sur le paiement).
 export default function CashChange({ value, onChange, amount, currency, rate }) {
-  const app = useApp()
   const cc = value.changeCur || currency
   const auto = changeFor(value.tendered, amount, currency, rate, cc)
   const shown = value.changeAmt != null && value.changeAmt !== '' ? { amount: Number(value.changeAmt) || 0, currency: cc } : auto
@@ -21,12 +19,10 @@ export default function CashChange({ value, onChange, amount, currency, rate }) 
       {shown && (
         <div className="flex items-center justify-between gap-2 text-sm">
           <span>Monnaie à rendre :</span>
-          {app.isAdmin
-            ? <span className="w-40"><NumberInput value={value.changeAmt != null && value.changeAmt !== '' ? value.changeAmt : String(auto?.amount ?? '')} onChange={(v) => onChange({ ...value, changeAmt: v })} /></span>
-            : <b className="text-base">{money(shown.amount, shown.currency)}</b>}
+          <span className="flex items-center gap-1"><span className="w-32"><NumberInput value={value.changeAmt != null && value.changeAmt !== '' ? value.changeAmt : String(auto?.amount ?? '')} onChange={(v) => onChange({ ...value, changeAmt: v })} /></span><b>{cc}</b></span>
         </div>
       )}
-      {app.isAdmin && shown && <div className="text-xs text-neutral-500">Calcul automatique ({money(auto?.amount || 0, cc)}) ; seul l’administrateur peut le modifier.</div>}
+      {shown && <div className="text-xs text-neutral-500">Calcul automatique : {money(auto?.amount || 0, cc)} (vous pouvez corriger le montant). Si le client remet le montant exact, il n’y a pas de monnaie.</div>}
     </div>
   )
 }
@@ -38,5 +34,5 @@ export function changeFields(value, amount, currency, rate, method) {
   const cc = value.changeCur || currency
   const auto = changeFor(value.tendered, amount, currency, rate, cc)
   const ch = value.changeAmt != null && value.changeAmt !== '' ? { amount: Number(value.changeAmt) || 0, currency: cc } : auto
-  return ch && ch.amount > 0 ? { tendered: Number(value.tendered), change: ch } : {}
+  return ch && ch.amount > 0 ? { tendered: Number(value.tendered), change: ch, ...(auto && Math.abs(auto.amount - ch.amount) > 0.004 ? { changeAuto: auto.amount, changeEdited: true } : {}) } : {}
 }
