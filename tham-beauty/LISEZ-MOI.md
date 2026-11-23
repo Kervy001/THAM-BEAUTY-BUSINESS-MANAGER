@@ -250,3 +250,32 @@ Nouvo meni **Réinvestissement** (admin sèlman) + kat « Fonds disponible » so
 ## Mizajou 19 — Pati benefis nan fon an: % oswa montan fiks
 
 Paj Réinvestissement → « Comment le fonds se remplit » : chwazi **Pourcentage du bénéfice** oswa **Montant fiks** (montan total ou deside, ou ka chanje l nenpòt lè; li pa janm depase benefis ki deja ankesè). Kapital la (koute revyen) toujou antre nan fon an. Pa gen chanjman nan règ Firestore.
+
+## Mizajou 38 + 39 (refè sou repo reyèl)
+- Logo sou reçu Bluetooth/USB; fòma enprime pa dokiman (Réglages → Logo & documents).
+- Magazen endepandan: vant, depans jeneral, inventè, stock pa magazen; "Magasins accessibles" pa itilizatè; pèmisyon "Voir tous les magasins".
+- Kliyan: chèche sèlman (non, prenon, tél., kòd), kòd inik, istorik acha.
+
+## Mizajou 40 — sekirite itilizatè + pèt pa magazen
+- Itilizatè ak Rôles: admin sèlman (UI + règ Firestore). Pèsonn pa ka bay tèt li oswa lòt moun akse.
+- Pa gen de kont ak menm e-mail (verifikasyon lis + Firebase). Dènye admin pa ka retire.
+- Pèt (Losses): chak pèt gen magazen li; stock verifye pa magazen.
+
+## Mizajou 41 — Etap 2 (sekirite pa magazen + nouvo pèmisyon)
+- Nouvo pèmisyon: dashboard.read, messages.use, customers.read, receivables.read, cash.close, projects.read, costs.read (+ finance.read = benefis/rapò).
+- Ansyen kont: pèmisyon nouvo yo dedwi otomatikman (rete konsa jiskaske admin anrejistre kont lan). Vandè pa wè Projè/pri achte ankò.
+- Paj yo bloke selon pèmisyon (menm si w tape adrès la).
+- Dashboard/Stock pa magazen pou itilizatè limite.
+- Admin → Sauvegarde → "Isolation des magasins": bouton pou aktive (apre mizajou sou tout aparèy) + retou aryè.
+- firestore-41.rules: règ pa magazen (aktif sèlman apre admin aktive isolation).
+
+## Mizajou 42 — Enprime reçu (tout aparèy)
+- Nouvo src/lib/printer.js: detekte aparèy, chwazi pi bon mòd (USB / Bluetooth / RawBT Android / Pataje an imaj / fenèt sistèm).
+- Vant: yon sèl bouton "Imprimer le reçu" + "Autres modes"; si sa echwe, panèl solisyon klè an kreyòl.
+- Matériel: Assistant d'impression (rekòmandasyon pa aparèy, chwa mòd, tès pou chak mòd).
+- Reçu an imaj (pataje WhatsApp / iPhone), logo enkli.
+
+## Mizajou 43
+- Reçu : heure de vente, monnaie rendue (devise au choix), frais de livraison à part, code-barres = numéro de vente.
+- Vente en gourdes : les prix se convertissent au taux du jour.
+- Réglages → Livreurs ; scan d'un reçu (douchette ou caméra) ouvre la vente.
