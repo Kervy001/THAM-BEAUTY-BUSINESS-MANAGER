@@ -490,12 +490,13 @@ export function SaleDetail() {
         <button className="btn-primary no-print" disabled={btBusy} onClick={() => printSmart()}><Icon name="printer" size={16} />{btBusy ? 'Envoi…' : 'Imprimer le reçu'}</button>
         <details className="no-print relative">
           <summary className="btn-ghost cursor-pointer list-none">Autres modes ▾</summary>
-          <div className="absolute right-0 z-30 mt-1 flex w-60 flex-col gap-1 rounded-xl border bg-white p-2 shadow-lg dark:bg-neutral-900">
-            <button className="btn-ghost btn-sm justify-start" onClick={() => printSmart('dialog')}>Fenêtre d’impression</button>
-            <button className="btn-ghost btn-sm justify-start" onClick={() => printSmart('usb', true)}>Câble USB (choisir l’imprimante)</button>
-            <button className="btn-ghost btn-sm justify-start" onClick={() => printSmart('bt', true)}>Bluetooth (choisir l’imprimante)</button>
-            <button className="btn-ghost btn-sm justify-start" onClick={() => printSmart('rawbt')}>RawBT (Android)</button>
-            <button className="btn-ghost btn-sm justify-start" onClick={() => printSmart('share')}>Partager en image</button>
+          <div onClick={(e) => e.currentTarget.parentElement.removeAttribute('open')} className="fixed inset-x-4 bottom-20 z-50 flex flex-col gap-2 rounded-2xl border border-line bg-white p-4 shadow-2xl sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:mt-1 sm:w-72 sm:p-3">
+            <div className="px-1 text-xs font-medium uppercase tracking-wide text-neutral-500">Autres modes d’impression</div>
+            <button className="btn-ghost justify-start !py-2.5 text-left" onClick={() => printSmart('dialog')}>Fenêtre d’impression</button>
+            <button className="btn-ghost justify-start !py-2.5 text-left" onClick={() => printSmart('usb', true)}>Câble USB (choisir l’imprimante)</button>
+            <button className="btn-ghost justify-start !py-2.5 text-left" onClick={() => printSmart('bt', true)}>Bluetooth (choisir l’imprimante)</button>
+            <button className="btn-ghost justify-start !py-2.5 text-left" onClick={() => printSmart('rawbt')}>RawBT (Android)</button>
+            <button className="btn-ghost justify-start !py-2.5 text-left" onClick={() => printSmart('share')}>Partager en image</button>
           </div>
         </details>
         <Link className="btn-ghost no-print" to={`/ventes/${s.id}/colis`}><Icon name="package" size={16} />Étiquette colis</Link>
