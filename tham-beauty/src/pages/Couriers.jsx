@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useApp } from '../lib/store.jsx'
 import { fdate, money, today } from '../lib/util.js'
+import CouriersManager from '../components/CouriersManager.jsx'
 import { Badge, Empty, PageHeader, Table } from '../components/ui.jsx'
 
 const iso = (d) => d.toISOString().slice(0, 10)
@@ -47,6 +48,7 @@ export default function Couriers() {
   return (
     <>
       <PageHeader title="Livreurs" subtitle="Frais de livraison par livreur (hors chiffre d’affaires)" />
+      {app.isAdmin && <CouriersManager />}
       <div className="mb-3 flex flex-wrap items-end gap-2">
         <label className="text-sm">Du<input type="date" className="input !w-auto" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
         <label className="text-sm">Au<input type="date" className="input !w-auto" value={to} onChange={(e) => setTo(e.target.value)} /></label>

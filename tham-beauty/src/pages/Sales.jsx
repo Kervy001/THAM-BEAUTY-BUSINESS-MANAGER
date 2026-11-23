@@ -37,7 +37,7 @@ export function stockOptionsOf(projects, sales, include, locId, firstLoc) {
 }
 
 // Scan du code-barres d'un reçu (douchette USB / Bluetooth ou caméra) → ouvre la vente correspondante
-function useOpenSaleByScan(app, nav) {
+export function useOpenSaleByScan(app, nav) {
   const find = (code) => { const c = String(code || '').trim().toUpperCase(); return app.D.sales.find((x) => String(x.number || '').toUpperCase() === c) }
   return (code) => {
     const sale = find(code)
@@ -52,7 +52,6 @@ export function Sales() {
   const nav = useNavigate()
   const [scanSale, setScanSale] = useState(false)
   const openByScan = useOpenSaleByScan(app, nav)
-  useWedgeScanner(wedgeNotify(app, openByScan))
   const [q, setQ] = useState('')
   const [ps, setPs] = useState('')
   const rows = useMemo(() => app.D.sales
@@ -381,7 +380,6 @@ export function SaleDetail() {
   const [ret, setRet] = useState(false)
   const [dlg, setDlg] = useState(null) // 'request' | 'delete' | 'approve' | 'refuse' | 'edit'
   const nav = useNavigate()
-  useWedgeScanner(wedgeNotify(app, useOpenSaleByScan(app, nav)))
   const [doc, setDoc] = useState('facture')
   const [btBusy, setBtBusy] = useState(false)
   const [printFail, setPrintFail] = useState(null)
