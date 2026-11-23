@@ -3,6 +3,7 @@ import { deleteDoc, doc } from 'firebase/firestore'
 import { db } from '../lib/firebase.js'
 import { useApp } from '../lib/store.jsx'
 import { convert, saleSummary } from '../lib/calc.js'
+import { cashEffect } from '../lib/cashflow.js'
 import { fdate, money, nowIso, sellerOf, today } from '../lib/util.js'
 import { Badge, Empty, Notice, NumberInput, PageHeader, Select, Textarea } from '../components/ui.jsx'
 
@@ -34,9 +35,10 @@ export default function Cash() {
     app.D.sales.forEach((s) => (s.payments || []).forEach((p) => {
       if (p.status === 'annule' || p.date !== date || p.by !== person.name) return
       const v = sign(p) * (Number(p.amount) || 0)
-      if (p.method === 'Espèces') cash[p.currency] = (cash[p.currency] || 0) + v
+      if (p.method === 'Espèces') { const e = cashEffect(p); for (const c of Object.keys(e)) cash[c] = (cash[c] || 0) + e[c] } // tient compte de la monnaie rendue
       else { const k = `${p.method} (${p.currency})`; other[k] = (other[k] || 0) + v }
     }))
+    app.D.sales.forEach((s) => { const f = s.deliveryFee; if (f?.amount > 0 && s.date === date && s.status !== 'annule' && sellerOf(s) === person.name) { const k = `Livraison à part (${f.currency})`; other[k] = (other[k] || 0) + Number(f.amount) } })
     const mine = app.D.sales.filter((s) => s.date === date && s.status !== 'annule' && sellerOf(s) === person.name)
     const net = mine.reduce((t, s) => t + convert(saleSummary(s).netKept, s.currency, app.ref, s.rate), 0)
     return { cash, other, sales: mine.length, net }

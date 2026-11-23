@@ -8,6 +8,10 @@ import { Badge, Empty, Input, Modal, MoneyStat, Notice, NumberInput, NumInput, P
 import Icon from '../components/Icon.jsx'
 import { receiptLogo } from '../components/Logo.jsx'
 import CustomerPicker from '../components/CustomerPicker.jsx'
+import CashChange, { changeFields, emptyChange } from '../components/CashChange.jsx'
+import { saleTime } from '../lib/cashflow.js'
+import { Barcode } from '../components/CodeImages.jsx'
+import { barcodeRaster } from '../lib/escposLogo.js'
 import PaymentModal from '../components/PaymentModal.jsx'
 import Scanner from '../components/Scanner.jsx'
 import { useWedgeScanner, wedgeNotify } from '../lib/wedge.js'
@@ -32,8 +36,23 @@ export function stockOptionsOf(projects, sales, include, locId, firstLoc) {
   return o.sort((a, b) => a.label.localeCompare(b.label))
 }
 
+// Scan du code-barres d'un reçu (douchette USB / Bluetooth ou caméra) → ouvre la vente correspondante
+function useOpenSaleByScan(app, nav) {
+  const find = (code) => { const c = String(code || '').trim().toUpperCase(); return app.D.sales.find((x) => String(x.number || '').toUpperCase() === c) }
+  return (code) => {
+    const sale = find(code)
+    if (!sale) return { ok: false, text: `Aucune vente avec le code ${code}` }
+    nav(`/ventes/${sale.id}`)
+    return { ok: true, text: `✓ Vente ${sale.number}` }
+  }
+}
+
 export function Sales() {
   const app = useApp()
+  const nav = useNavigate()
+  const [scanSale, setScanSale] = useState(false)
+  const openByScan = useOpenSaleByScan(app, nav)
+  useWedgeScanner(wedgeNotify(app, openByScan))
   const [q, setQ] = useState('')
   const [ps, setPs] = useState('')
   const rows = useMemo(() => app.D.sales
@@ -43,8 +62,10 @@ export function Sales() {
   return (
     <>
       <PageHeader title="Ventes">
+        <button type="button" className="btn-ghost" onClick={() => setScanSale(true)}><Icon name="scan" size={18} />Scanner un reçu</button>
         {app.can('sales.write') && <Link to="/ventes/nouvelle" className="btn-primary">+ Nouvelle vente</Link>}
       </PageHeader>
+      {scanSale && <Scanner title="Scanner le code d’un reçu" onDetect={(c) => { const r = openByScan(c); if (r.ok) setScanSale(false); return r.text }} onClose={() => setScanSale(false)} />}
       <div className="mb-3 flex flex-wrap gap-2">
         <input className="input !w-56" placeholder="N°, client ou vendeur…" value={q} onChange={(e) => setQ(e.target.value)} />
         <select className="input !w-auto" value={ps} onChange={(e) => setPs(e.target.value)}>
@@ -82,8 +103,10 @@ export function NewSale() {
   const nav = useNavigate()
   const [params] = useSearchParams()
   const firstLoc = app.locations[0].id
-  const [f, setF] = useState({ locationId: app.defaultLoc, customerId: '', customerName: '', date: today(), currency: 'USD', rate: String(app.rate), delivery: 'retire', globalType: 'fixed', globalValue: '', notes: '' })
+  const [f, setF] = useState({ locationId: app.defaultLoc, customerId: '', customerName: '', date: today(), currency: 'USD', rate: String(app.rate), delivery: 'retire', globalType: 'fixed', globalValue: '', notes: '', feeAmount: '', feeCur: 'HTG', courierId: '', feeIn: true })
   const [lines, setLines] = useState([])
+  const [chg, setChg] = useState(emptyChange())
+  const [payAuto, setPayAuto] = useState(true)
   const [pay, setPay] = useState({ amount: '', currency: 'USD', rate: String(app.rate), method: 'Espèces' })
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
@@ -103,6 +126,8 @@ export function NewSale() {
 
   const draft = { currency: f.currency, rate: Number(f.rate), globalDiscount: { type: f.globalType, value: app.can('discount.global') ? Number(f.globalValue) || 0 : 0 }, lines: lines.map((l) => ({ ...l, qty: Number(l.qty) || 0, unitPrice: Number(l.unitPrice) || 0, discount: { type: l.dType, value: Number(l.dValue) || 0 } })) }
   const t = saleTotals(draft)
+  // Frais de livraison encaissés avec le paiement (convertis dans la devise du paiement) : ils comptent pour la monnaie à rendre, jamais pour la vente
+  const feeInPay = f.delivery !== 'retire' && f.feeIn && Number(f.feeAmount) > 0 && Number(pay.amount) > 0 ? round2(convert(Number(f.feeAmount), f.feeCur, pay.currency, Number(pay.rate) || app.rate)) : 0
   const showCost = app.can('costs.read')
 
   // Prix de gros d'une ligne (défini sur la variante du produit), converti dans la devise de la vente
@@ -120,7 +145,7 @@ export function NewSale() {
     setLines((ls) => {
       const same = ls.findIndex((l) => l.itemId === o.it.id)
       if (same >= 0) return ls.map((l, j) => (j === same ? { ...l, qty: String(Math.min(o.remaining, (Number(l.qty) || 0) + 1)) } : l))
-      return [...ls, { id: uid(), projectId: o.p.id, itemId: o.it.id, label: o.it.label, sku: o.it.sku || '', qty: '1', unitPrice: String(price), productId: o.it.productId || '', variantId: o.it.variantId || '', dType: 'fixed', dValue: '', max: o.remaining, projectNumber: o.p.number }]
+      return [...ls, { id: uid(), baseP: Number(o.it.plannedPrice) || 0, baseC: o.it.plannedCurrency || 'USD', projectId: o.p.id, itemId: o.it.id, label: o.it.label, sku: o.it.sku || '', qty: '1', unitPrice: String(price), productId: o.it.productId || '', variantId: o.it.variantId || '', dType: 'fixed', dValue: '', max: o.remaining, projectNumber: o.p.number }]
     })
     setSearch('')
   }
@@ -176,7 +201,21 @@ export function NewSale() {
     return { ok: true, text: `✓ ${o.label} — quantité ${q}` }
   }
   useWedgeScanner(wedgeNotify(app, onScan)) // scanner USB / Bluetooth / 2,4 GHz : l'article s'ajoute tout seul
-  const setL = (i, k, v) => setLines(lines.map((l, j) => (j === i ? { ...l, [k]: v } : l)))
+  const setL = (i, k, v) => setLines(lines.map((l, j) => (j === i ? { ...l, [k]: v, ...(k === 'unitPrice' ? { edited: true } : {}) } : l)))
+  // Changement de devise ou de taux : les prix des articles suivent (prix prévu converti au taux de la vente ; prix saisis à la main convertis au taux)
+  function applyBilling(cur, rateStr) {
+    const oldCur = f.currency, oldRate = Number(f.rate) || 0, nr = Number(rateStr) || 0
+    const conv = (v) => String(round2(convert(Number(v), oldCur, cur, oldRate)))
+    setLines((ls) => ls.map((l) => {
+      let unit = l.unitPrice
+      if (!l.edited && l.baseP > 0) unit = String(round2(convert(l.baseP, l.baseC || 'USD', cur, nr)))
+      else if (cur !== oldCur && unit !== '' && !Number.isNaN(Number(unit))) unit = conv(unit)
+      const dv = cur !== oldCur && l.dType === 'fixed' && l.dValue !== '' && !Number.isNaN(Number(l.dValue)) ? conv(l.dValue) : l.dValue
+      return { ...l, unitPrice: unit, dValue: dv }
+    }))
+    setF({ ...f, currency: cur, rate: rateStr, ...(cur !== oldCur && f.globalType === 'fixed' && f.globalValue !== '' ? { globalValue: conv(f.globalValue) } : {}) })
+    setPay((x) => ({ ...x, currency: cur !== oldCur ? cur : x.currency, rate: x.rate === f.rate ? rateStr : x.rate, amount: cur !== oldCur && x.amount !== '' ? String(round2(convert(Number(x.amount), oldCur, cur, oldRate))) : x.amount }))
+  }
   const matches = stockOptions.filter((o) => (o.label + ' ' + o.lot + ' ' + (o.it.sku || '')).toLowerCase().includes(search.toLowerCase()) || (search.length > 3 && stockMatchesFor(search, app.D.products, [o]).length > 0))
 
   async function submit(e) {
@@ -209,10 +248,11 @@ export function NewSale() {
           costSnapshot: app.costing[l.projectId]?.perItem?.[l.itemId]?.unitCostRef || 0
         })),
         ...(boite ? { bundleId: boite.id, bundleNumber: boite.number } : {}),
-        payments: [], returns: []
+        payments: [], returns: [],
+        ...(f.delivery !== 'retire' && (Number(f.feeAmount) > 0 || f.courierId) ? { deliveryFee: { amount: Number(f.feeAmount) || 0, currency: f.feeCur, courierId: f.courierId, courierName: (app.settings.couriers || []).find((c) => c.id === f.courierId)?.name || '' } } : {})
       }
       if (Number(pay.amount) > 0) {
-        sale.payments.push({ id: uid(), type: 'payment', date: f.date, amount: Number(pay.amount), currency: pay.currency, rate: Number(pay.rate), method: pay.method, status: 'valide', by: app.profile?.name || '', at: nowIso() })
+        sale.payments.push({ id: uid(), type: 'payment', date: f.date, amount: Number(pay.amount), currency: pay.currency, rate: Number(pay.rate), method: pay.method, ...changeFields(chg, Number(pay.amount) + feeInPay, pay.currency, Number(pay.rate), pay.method), ...(feeInPay > 0 ? { feeIncluded: true } : {}), status: 'valide', by: app.profile?.name || '', at: nowIso() })
       }
       const id = await app.save('sales', null, sale, 'vente')
       if (boite) { try { await app.save('bundles', boite.id, { status: 'vendu', saleId: id, soldAt: nowIso() }, 'boîte vendue') } catch { /* la vente est enregistrée ; la boîte pourra être marquée à la main */ } }
@@ -235,9 +275,17 @@ export function NewSale() {
         <CustomerPicker value={f.customerId} onChange={(v) => setF({ ...f, customerId: v })} />
         {!f.customerId && <Input label="Nom du client (facultatif)" value={f.customerName} onChange={(e) => setF({ ...f, customerName: e.target.value })} />}
         <Input label="Date" type="date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} />
-        <Select label="Devise de facturation" value={f.currency} onChange={(v) => { setF({ ...f, currency: v }); setPay({ ...pay, currency: v }) }} options={['USD', 'HTG']} />
-        <NumberInput label="Taux de cette commande (HTG/USD)" value={f.rate} onChange={(v) => setF({ ...f, rate: v })} hint={`Taux général : ${app.rate}. Cette commande gardera son taux même si le taux général change.`} />
+        <Select label="Devise de facturation" value={f.currency} onChange={(v) => applyBilling(v, f.rate)} options={['USD', 'HTG']} />
+        <NumberInput label="Taux de cette commande (HTG/USD)" value={f.rate} onChange={(v) => applyBilling(f.currency, v)} hint={`Taux général : ${app.rate}. Cette commande gardera son taux même si le taux général change.`} />
         <Select label="Livraison" value={f.delivery} onChange={(v) => setF({ ...f, delivery: v })} options={Object.entries(DELIVERY).map(([value, label]) => ({ value, label }))} />
+        {f.delivery !== 'retire' && (
+          <div className="col-span-full grid grid-cols-2 gap-3 rounded-xl bg-paper p-3 ring-1 ring-line sm:grid-cols-4">
+            <NumberInput label="Frais de livraison" value={f.feeAmount} onChange={(v) => setF({ ...f, feeAmount: v })} hint="Encaissés à part : hors chiffre d’affaires." />
+            <Select label="Devise des frais" value={f.feeCur} onChange={(v) => setF({ ...f, feeCur: v })} options={['HTG', 'USD']} />
+            <Select label="Livreur" value={f.courierId} onChange={(v) => setF({ ...f, courierId: v })} placeholder="— choisir —" options={(app.settings.couriers || []).map((c) => ({ value: c.id, label: c.name }))} />
+            <label className="flex items-center gap-2 pt-6 text-sm"><input type="checkbox" checked={f.feeIn} onChange={(e) => setF({ ...f, feeIn: e.target.checked })} />Encaissés avec le paiement</label>
+          </div>
+        )}
       </div>
 
       <div className="card space-y-3">
@@ -302,11 +350,21 @@ export function NewSale() {
         <div className="card">
           <div className="mb-3 font-display text-base font-semibold">Paiement reçu maintenant (facultatif)</div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <NumberInput label="Montant" value={pay.amount} onChange={(v) => setPay({ ...pay, amount: v })} />
+            <NumberInput label="Montant" value={pay.amount} onChange={(v) => { setPayAuto(false); setPay({ ...pay, amount: v }) }} />
             <Select label="Devise" value={pay.currency} onChange={(v) => setPay({ ...pay, currency: v })} options={['USD', 'HTG']} />
             <NumberInput label="Taux du paiement" value={pay.rate} onChange={(v) => setPay({ ...pay, rate: v })} />
             <Select label="Moyen" value={pay.method} onChange={(v) => setPay({ ...pay, method: v })} options={['Espèces', 'MonCash', 'NatCash', 'Virement', 'Chèque', 'Carte', 'Autre']} />
           </div>
+          {pay.method === 'Espèces' && (
+            <div className="mt-3">
+              <CashChange value={chg} onChange={(v) => {
+                setChg(v)
+                const tn = Number(v.tendered) || 0
+                if (payAuto && tn > 0) { const due = round2(convert(t.net, f.currency, pay.currency, Number(pay.rate) || app.rate)); setPay({ ...pay, amount: String(Math.max(0, Math.min(round2(tn - feeInPay), due))) }) }
+              }} amount={(Number(pay.amount) || 0) + feeInPay} currency={pay.currency} rate={Number(pay.rate) || app.rate} />
+              {feeInPay > 0 && <div className="mt-1 text-xs text-neutral-500">Frais de livraison inclus dans le montant remis : {money(feeInPay, pay.currency)}.</div>}
+            </div>
+          )}
         </div>
       )}
       {err && <Notice tone="red">{err}</Notice>}
@@ -323,9 +381,11 @@ export function SaleDetail() {
   const [ret, setRet] = useState(false)
   const [dlg, setDlg] = useState(null) // 'request' | 'delete' | 'approve' | 'refuse' | 'edit'
   const nav = useNavigate()
+  useWedgeScanner(wedgeNotify(app, useOpenSaleByScan(app, nav)))
   const [doc, setDoc] = useState('facture')
   const [btBusy, setBtBusy] = useState(false)
   const [printFail, setPrintFail] = useState(null)
+  const [feeDlg, setFeeDlg] = useState(false)
   // Format par défaut selon le document (Réglages → Logo & documents) ; le réglage propre à l'appareil (Matériel) passe devant pour le reçu
   const docFormat = (d) => (d === 'recu' ? getPrintPrefs().receipt || app.settings?.print?.recu || app.settings?.receipt?.format || 'a4' : app.settings?.print?.facture || 'a4')
   const manualFmt = useRef(false)
@@ -370,10 +430,10 @@ export function SaleDetail() {
     if (method === 'dialog') { showDoc('recu'); printSoon(); return }
     const m = (x) => money(x, s.currency)
     const model = {
-      company: { name: co.name, address: co.address, phone: co.phone }, docTitle: 'Reçu de paiement', number: s.number, date: fdate(s.date), customer: s.customerName, seller: sellerOf(s),
+      company: { name: co.name, address: co.address, phone: co.phone }, docTitle: 'Reçu de paiement', number: s.number, date: fdate(s.date) + (saleTime(s) ? ' ' + saleTime(s) : ''), barcodeText: s.number, customer: s.customerName, seller: sellerOf(s),
       lines: r.lines.map((p) => ({ label: p.l.label, qty: p.qty, unit: m(p.l.unitPrice), total: m(p.net), disc: p.lineDisc + p.globalShare > 0 ? m(p.lineDisc + p.globalShare) : '', returned: p.l.qtyReturned > 0 ? p.l.qtyReturned : 0 })),
-      totals: [['Montant brut', m(r.gross)], ...(r.totalDiscount > 0 ? [['Réductions', '-' + m(r.totalDiscount)]] : []), ['Net', m(r.net), true], ...(r.net !== r.netKept ? [['Après retours', m(r.netKept)]] : []), ['Payé', m(r.paid)], ['Solde', m(r.balance), true]],
-      payments: (s.payments || []).filter((p) => p.status !== 'annule').map((p) => `${fdate(p.date)} - ${p.type === 'refund' ? 'Remboursement' : 'Paiement'} ${money(p.amount, p.currency)} (${p.method})`),
+      totals: [['Montant brut', m(r.gross)], ...(r.totalDiscount > 0 ? [['Réductions', '-' + m(r.totalDiscount)]] : []), ['Net', m(r.net), true], ...(r.net !== r.netKept ? [['Après retours', m(r.netKept)]] : []), ['Payé', m(r.paid)], ['Solde', m(r.balance), true], ...(s.deliveryFee?.amount > 0 ? [['Livraison (à part)', money(s.deliveryFee.amount, s.deliveryFee.currency)]] : [])],
+      payments: (s.payments || []).filter((p) => p.status !== 'annule').map((p) => `${fdate(p.date)} - ${p.type === 'refund' ? 'Remboursement' : 'Paiement'} ${money(p.amount, p.currency)} (${p.method})` + (p.tendered > 0 && p.change ? ` Reçu ${money(p.tendered, p.currency)}, monnaie rendue ${money(p.change.amount, p.change.currency)}` : '')),
       note: `Taux : 1 USD = ${s.rate} HTG`, footer: co.footer
     }
     const cols = Number(P.btCols) || colsFor(fmt === 'a4' ? 'ticket58' : fmt, receiptWidth(fmt, P))
@@ -388,7 +448,9 @@ export function SaleDetail() {
         if (rc.showLogo) {
           try { logo = await logoRaster(receiptLogo(app.settings), { widthDots: logoDots(cols, rc.logoWidth) }) } catch { app.notify('Logo non imprimé (image illisible).', 'error') }
         }
-        await sendDirect(method, receiptToEscpos(model, { cols, accents: !!P.btAccents, cut: !!P.btCut, feed: Number(P.btFeed) || 0, logo }), { pick })
+        let barcode
+        try { barcode = barcodeRaster(s.number, { widthDots: logoDots(cols, 300) }) } catch { barcode = null }
+        await sendDirect(method, receiptToEscpos(model, { cols, accents: !!P.btAccents, cut: !!P.btCut, feed: Number(P.btFeed) || 0, logo, barcode }), { pick })
         setPrintPrefs({ lastOk: method })
         app.notify(method === 'rawbt' ? 'Reçu envoyé à RawBT ✓ (si rien ne sort : installez RawBT et associez l’imprimante)' : 'Reçu envoyé à l’imprimante ✓')
       }
@@ -476,6 +538,16 @@ export function SaleDetail() {
         <div className="card !p-3"><div className="text-xs text-neutral-500">Paiement</div><div className="mt-1"><Badge tone={payTone(r.payStatus)}>{PAY_STATUS[r.payStatus]}</Badge></div>
           <select className="input mt-2 !py-1 text-xs" value={s.delivery || 'retire'} onChange={(e) => setDelivery(e.target.value)} disabled={cancelled || !app.can('sales.write')}>{Object.entries(DELIVERY).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
       </div>
+      {!cancelled && (s.deliveryFee?.amount > 0 || s.deliveryFee?.courierId || s.delivery === 'a_livrer') && (
+        <div className="card no-print mb-4 flex flex-wrap items-center justify-between gap-3 !p-3 text-sm">
+          <div>
+            <div className="text-xs text-neutral-500">Livraison (hors chiffre d’affaires)</div>
+            <div><b>{s.deliveryFee?.amount > 0 ? money(s.deliveryFee.amount, s.deliveryFee.currency) : 'Pas de frais'}</b>{s.deliveryFee?.courierName ? ` · Livreur : ${s.deliveryFee.courierName}` : ' · livreur non choisi'}{s.deliveryFee?.remittedAt ? ` · remis au livreur le ${fdate(s.deliveryFee.remittedAt)}` : s.deliveryFee?.amount > 0 ? ' · à remettre au livreur' : ''}</div>
+          </div>
+          {app.can('sales.write') && <button className="btn-ghost btn-sm" onClick={() => setFeeDlg(true)}>Modifier</button>}
+        </div>
+      )}
+      {feeDlg && <FeeDialog sale={s} onClose={() => setFeeDlg(false)} />}
       {showProfit && !cancelled && (
         <div className="no-print mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
           <MoneyStat label="Coût des articles" v={pr.cogs} cur={app.ref} />
@@ -490,7 +562,7 @@ export function SaleDetail() {
             {rc.showLogo && <img src={receiptLogo(app.settings)} alt="" style={{ width: thermal ? Math.min(rc.logoWidth, 110) : rc.logoWidth, height: 'auto' }} />}
             <div><div className="font-display text-xl font-bold">{co.name || 'THAM BEAUTY'}</div><div className="text-xs text-neutral-600">{co.address} {co.phone && `· ${co.phone}`}</div></div>
           </div>
-          <div className={'whitespace-nowrap ' + (thermal ? 'mt-2 text-sm' : 'text-right text-sm')}><div className="font-display text-lg font-semibold">{doc === 'recu' ? 'Reçu de paiement' : 'Facture'}</div><div>{s.number}</div><div>{fdate(s.date)}</div></div>
+          <div className={'whitespace-nowrap ' + (thermal ? 'mt-2 text-sm' : 'text-right text-sm')}><div className="font-display text-lg font-semibold">{doc === 'recu' ? 'Reçu de paiement' : 'Facture'}</div><div>{s.number}</div><div>{fdate(s.date)}{saleTime(s) ? ' · ' + saleTime(s) : ''}</div></div>
         </div>
         <div className="mb-3 text-sm">Client : <b>{s.customerName}</b> <span className="text-neutral-500">· Vendeur : {sellerOf(s)}</span></div>
         <Table head={thermal ? ['Article', 'Qté × prix', ...(r.lines.some((p) => p.lineDisc + p.globalShare > 0) ? ['Réd.'] : []), 'Total'] : ['Article', 'Qté', 'Prix unit.', 'Réduction', 'Total']}>
@@ -511,13 +583,16 @@ export function SaleDetail() {
           <div className="flex justify-between"><span>Payé</span><span>{money(r.paid, s.currency)}</span></div>
           <div className="flex justify-between font-semibold"><span>Solde</span><span>{money(r.balance, s.currency)}</span></div>
           <div className="text-xs text-neutral-500">Taux de la commande : 1 USD = {s.rate} HTG</div>
+          {s.deliveryFee?.amount > 0 && <div className="flex justify-between border-t border-dashed pt-1"><span>Livraison{s.deliveryFee.courierName ? ` (${s.deliveryFee.courierName})` : ''}</span><span>{money(s.deliveryFee.amount, s.deliveryFee.currency)}</span></div>}
+          {s.deliveryFee?.amount > 0 && <div className="text-[10px] text-neutral-500">Frais de livraison encaissés à part (non inclus dans le net).</div>}
         </div>
         {doc === 'recu' && (s.payments || []).filter((p) => p.status !== 'annule').length > 0 && (
           <div className="mt-4 text-sm"><div className="mb-1 font-medium">Paiements</div>
-            {s.payments.filter((p) => p.status !== 'annule').map((p) => <div key={p.id}>{fdate(p.date)} — {p.type === 'refund' ? 'Remboursement' : 'Paiement'} {money(p.amount, p.currency)} ({p.method}, taux {p.rate})</div>)}
+            {s.payments.filter((p) => p.status !== 'annule').map((p) => <div key={p.id}>{fdate(p.date)} — {p.type === 'refund' ? 'Remboursement' : 'Paiement'} {money(p.amount, p.currency)} ({p.method}, taux {p.rate}){p.tendered > 0 && p.change && <div className="text-xs text-neutral-600">Reçu du client : {money(p.tendered, p.currency)} · Monnaie rendue : {money(p.change.amount, p.change.currency)}</div>}</div>)}
           </div>
         )}
         <div className="mt-6 text-center text-xs text-neutral-500">{co.footer}</div>
+        <div className="mx-auto mt-3 max-w-[240px] text-center"><Barcode value={s.number} height={48} /><div className="text-[11px] tracking-widest">{s.number}</div></div>
       </div>
 
       <div className="no-print space-y-3">
@@ -760,6 +835,38 @@ function ReturnModal({ s, onClose }) {
         <Input label="Motif" value={note} onChange={(e) => setNote(e.target.value)} />
         <Notice tone="blue">Les articles retournés reviennent en stock et le montant net de la vente diminue. Pensez à enregistrer un remboursement si vous rendez de l'argent.</Notice>
         <button className="btn-primary w-full">Enregistrer le retour</button>
+      </form>
+    </Modal>
+  )
+}
+
+
+// Frais de livraison et livreur d'une vente (modifiable ; les frais ne comptent jamais dans le chiffre d'affaires)
+function FeeDialog({ sale, onClose }) {
+  const app = useApp()
+  const d = sale.deliveryFee || {}
+  const [f, setF] = useState({ amount: String(d.amount || ''), currency: d.currency || 'HTG', courierId: d.courierId || '', remitted: !!d.remittedAt })
+  const [busy, setBusy] = useState(false)
+  async function save(e) {
+    e.preventDefault()
+    setBusy(true)
+    try {
+      const courier = (app.settings.couriers || []).find((c) => c.id === f.courierId)
+      const deliveryFee = { amount: Number(f.amount) || 0, currency: f.currency, courierId: f.courierId, courierName: courier?.name || (f.courierId === d.courierId ? d.courierName || '' : ''), ...(f.remitted ? { remittedAt: d.remittedAt || today() } : {}) }
+      await app.save('sales', sale.id, { deliveryFee }, 'frais de livraison')
+      onClose()
+    } finally { setBusy(false) }
+  }
+  return (
+    <Modal title="Frais de livraison" onClose={onClose}>
+      <form onSubmit={save} className="space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <NumberInput label="Montant" value={f.amount} onChange={(v) => setF({ ...f, amount: v })} />
+          <Select label="Devise" value={f.currency} onChange={(v) => setF({ ...f, currency: v })} options={['HTG', 'USD']} />
+        </div>
+        <Select label="Livreur" value={f.courierId} onChange={(v) => setF({ ...f, courierId: v })} placeholder="— aucun —" options={(app.settings.couriers || []).map((c) => ({ value: c.id, label: c.name }))} />
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.remitted} onChange={(e) => setF({ ...f, remitted: e.target.checked })} />Frais déjà remis au livreur</label>
+        <button className="btn-primary w-full" disabled={busy}>{busy ? '…' : 'Enregistrer'}</button>
       </form>
     </Modal>
   )
