@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { Modal } from './ui.jsx'
 import Icon from './Icon.jsx'
+import { scanCode128 } from '../lib/code128Scan.js'
 
-// Scanner de codes-barres / QR avec la caméra (Chrome Android : détecteur intégré, rapide et sans Internet).
+// Scanner de codes-barres / QR avec la caméra. Chrome Android : détecteur intégré. iPhone / Safari / autres : lecteur Code 128 intégré à l'application (sans Internet) + QR.
 // Saisie manuelle toujours disponible : fonctionne aussi avec une douchette USB / Bluetooth (elle « tape » le code + Entrée).
 // onDetect(code) peut renvoyer un message (texte) affiché sous la caméra. continuous : reste ouvert pour scanner plusieurs articles.
 const hasDetector = typeof window !== 'undefined' && 'BarcodeDetector' in window
@@ -56,7 +57,8 @@ export default function Scanner({ title = 'Scanner un code', continuous = false,
     async function start() {
       if (!navigator.mediaDevices?.getUserMedia) { setErr('La caméra n’est pas disponible ici (HTTPS requis). Utilisez la saisie manuelle ci-dessous.'); setState('error'); return }
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 } }, audio: false })
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false })
+        try { await stream.getVideoTracks()[0].applyConstraints({ advanced: [{ focusMode: 'continuous' }] }) } catch { /* pas supporté (iPhone) : sans effet */ }
         if (stopped) { stream.getTracks().forEach((t) => t.stop()); return }
         const v = video.current
         v.srcObject = stream
@@ -64,8 +66,7 @@ export default function Scanner({ title = 'Scanner un code', continuous = false,
         setState('ready')
         let detector = null
         let jsqr = null
-        if (hasDetector) { detector = new window.BarcodeDetector() } else { try { jsqr = await loadJsQR() } catch { /* pas de repli */ } }
-        if (!detector && !jsqr) { setErr('Ce navigateur ne sait pas lire les codes avec la caméra. Utilisez Chrome sur Android, ou la saisie manuelle.'); return }
+        if (hasDetector) { detector = new window.BarcodeDetector() } else { loadJsQR().then((q) => { jsqr = q }).catch(() => { /* QR indisponible hors ligne : les codes-barres restent lus */ }) }
         const canvas = document.createElement('canvas')
         const ctx = canvas.getContext('2d', { willReadFrequently: true })
         const tick = async () => {
@@ -79,8 +80,9 @@ export default function Scanner({ title = 'Scanner un code', continuous = false,
                 canvas.width = v.videoWidth; canvas.height = v.videoHeight
                 ctx.drawImage(v, 0, 0)
                 const img = ctx.getImageData(0, 0, canvas.width, canvas.height)
-                const r = jsqr(img.data, img.width, img.height)
-                if (r?.data) await handle(r.data)
+                const bc = scanCode128(img) // codes-barres (reçus, étiquettes)
+                if (bc) await handle(bc)
+                else if (jsqr) { const r = jsqr(img.data, img.width, img.height); if (r?.data) await handle(r.data) }
               }
             }
           } catch { /* image pas encore prête */ }
