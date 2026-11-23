@@ -30,6 +30,7 @@ const loaders = {
   Security: () => import('./pages/Security.jsx'),
   Receivables: () => import('./pages/Receivables.jsx'),
   Cash: () => import('./pages/Cash.jsx'),
+  Couriers: () => import('./pages/Couriers.jsx'),
   Inventory: () => import('./pages/Inventory.jsx'),
   Messages: () => import('./pages/Messages.jsx'),
   Bundles: () => import('./pages/Bundles.jsx'),
@@ -64,6 +65,7 @@ const Labels = page('Labels')
 const Security = page('Security')
 const Receivables = page('Receivables')
 const Cash = page('Cash')
+const Couriers = page('Couriers')
 const Inventory = page('Inventory')
 const Messages = page('Messages')
 const Fund = page('Fund')
@@ -102,7 +104,8 @@ const GROUPS = [
     { to: '/boites', label: 'Boîtes (gros)', icon: 'package', perm: ['bundles.write'] },
     { to: '/clients', label: 'Clients', icon: 'users', perm: ['customers.read', 'customers.write'] },
     { to: '/creances', label: 'Créances', icon: 'wallet', perm: ['receivables.read'] },
-    { to: '/caisse', label: 'Clôture de caisse', icon: 'receipt', perm: ['cash.close'] }
+    { to: '/caisse', label: 'Clôture de caisse', icon: 'receipt', perm: ['cash.close'] },
+    { to: '/livreurs', label: 'Livreurs', icon: 'package', perm: ['finance.read'] }
   ] },
   { title: 'Approvisionnement', items: [
     { to: '/projets', label: 'Projets', icon: 'package', perm: ['projects.read', 'projects.write'] },
@@ -298,6 +301,7 @@ export default function App() {
             <Route path="/securite" element={<Security />} />
             <Route path="/creances" element={<Receivables />} />
             <Route path="/caisse" element={<Cash />} />
+            <Route path="/livreurs" element={<Couriers />} />
             <Route path="/inventaire" element={<Inventory />} />
             <Route path="/materiel" element={<Hardware />} />
             <Route path="/ventes/:id/colis" element={<ParcelLabel />} />
