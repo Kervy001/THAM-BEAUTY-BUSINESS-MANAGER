@@ -3,6 +3,7 @@
 import { btPrint, btSupported, btName } from './btprint.js'
 import { usbPrint, usbSupported, usbName } from './usbprint.js'
 import { clean, pad2, wrap } from './escpos.js'
+import { code128Widths } from './codes.js'
 
 export function platform() {
   const ua = (typeof navigator !== 'undefined' && navigator.userAgent) || ''
@@ -129,7 +130,9 @@ export async function receiptPng(m, { cols = 32, logoUrl = '', logoPx = 150 } = 
   }
   const lw = logo ? Math.min(logoPx, W - pad * 2) : 0
   const lhgt = logo ? Math.round((lw * logo.height) / logo.width) + 12 : 0
-  cv.width = W; cv.height = pad * 2 + lhgt + lines.length * lh + 40
+  const bw = m.barcodeText ? code128Widths(m.barcodeText) : []
+  const bcH = bw.length ? 110 : 0
+  cv.width = W; cv.height = pad * 2 + lhgt + lines.length * lh + 40 + bcH
   const c = cv.getContext('2d')
   c.fillStyle = '#fff'; c.fillRect(0, 0, cv.width, cv.height)
   c.fillStyle = '#000'; c.textBaseline = 'top'
@@ -141,6 +144,16 @@ export async function receiptPng(m, { cols = 32, logoUrl = '', logoPx = 150 } = 
     const w = c.measureText(t).width
     c.fillText(t, l.c ? Math.max(pad, (W - w) / 2) : pad, y)
     y += lh
+  }
+  if (bw.length) {
+    const quiet = 10, total = bw.reduce((a, b) => a + b, 0) + quiet * 2
+    const mod = Math.max(1, Math.floor((W - pad * 2) / total))
+    let x = (W - total * mod) / 2 + quiet * mod
+    y += 10
+    bw.forEach((wd, i) => { if (i % 2 === 0) c.fillRect(Math.round(x), y, wd * mod, 60); x += wd * mod })
+    c.font = `${fs}px "Courier New", monospace`
+    const t = clean(m.barcodeText, true, false)
+    c.fillText(t, Math.max(pad, (W - c.measureText(t).width) / 2), y + 66)
   }
   return new Promise((ok, ko) => cv.toBlob((b) => (b ? ok(b) : ko(new Error('Image impossible à créer.'))), 'image/png'))
 }

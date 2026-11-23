@@ -23,6 +23,7 @@ export const DEFAULT_SETTINGS = {
   print: { facture: 'a4', recu: '', colis: '', label: '' }, // format par défaut pour chaque type de document ('' = automatique)
   logo: '',
   expenseCategories: DEFAULT_EXPENSE_CATEGORIES,
+  couriers: [], // livreurs : [{ id, name, phone }]
   locations: [{ id: 'main', name: 'Boutique principale' }], // boutiques / dépôts (le stock par lieu n'apparaît que s'il y en a plusieurs)
   whatsappCC: '509', // indicatif pays pour les numéros WhatsApp à 8 chiffres
   security: { requirePin: false, lockMinutes: 5 }, // verrouillage : PIN obligatoire pour tous ? délai par défaut

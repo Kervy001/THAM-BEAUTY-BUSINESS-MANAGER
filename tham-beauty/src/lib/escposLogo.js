@@ -1,3 +1,4 @@
+import { code128Widths } from './codes.js'
 // Logo → image « raster » ESC/POS (GS v 0) pour imprimer le logo sur une imprimante thermique en direct (Bluetooth / USB).
 // Partie pure (sans navigateur) : testable. La partie canvas (logoRaster) ne sert que dans le navigateur.
 
@@ -77,4 +78,21 @@ export const logoDots = (cols, logoWidthPx) => {
   const max = cols <= 36 ? 384 : 576
   const frac = Math.max(0.2, Math.min(1, (Number(logoWidthPx) || 90) / (cols <= 36 ? 200 : 300)))
   return Math.max(96, Math.round((max * frac) / 8) * 8)
+}
+
+// Code 128 → image raster ESC/POS (pur, sans canvas). Chaque module = n points entiers (net pour les scanners). Retourne null si rien à dessiner.
+export function barcodeRaster(text, { widthDots = 384, height = 56 } = {}) {
+  const widths = code128Widths(text)
+  if (!widths.length) return null
+  const quiet = 10
+  const modules = widths.reduce((a, b) => a + b, 0) + quiet * 2
+  const mod = Math.max(1, Math.min(3, Math.floor(widthDots / modules)))
+  const w = modules * mod
+  const gray = new Uint8Array(w * height).fill(255)
+  let x = quiet
+  widths.forEach((wd, i) => {
+    if (i % 2 === 0) for (let y = 0; y < height; y++) for (let k = x * mod; k < (x + wd) * mod; k++) gray[y * w + k] = 0
+    x += wd
+  })
+  return rasterToEscpos(gray, w, height, { dither: false })
 }
