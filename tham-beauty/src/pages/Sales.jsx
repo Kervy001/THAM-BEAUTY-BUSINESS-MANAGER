@@ -591,7 +591,7 @@ export function SaleDetail() {
           </div>
         )}
         <div className="mt-6 text-center text-xs text-neutral-500">{co.footer}</div>
-        <div className="mx-auto mt-3 max-w-[240px] text-center"><Barcode value={s.number} height={48} /><div className="text-[11px] tracking-widest">{s.number}</div></div>
+        <div className="mx-auto mt-4 w-full max-w-[420px] px-2 text-center"><Barcode value={s.number} height={64} /><div className="text-[11px] tracking-widest">{s.number}</div></div>
       </div>
 
       <div className="no-print space-y-3">
