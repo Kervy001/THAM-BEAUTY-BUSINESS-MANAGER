@@ -152,7 +152,7 @@ export async function receiptPng(m, { cols = 32, logoUrl = '', logoPx = 150 } = 
     y += 10
     bw.forEach((wd, i) => { if (i % 2 === 0) c.fillRect(Math.round(x), y, wd * mod, 60); x += wd * mod })
     c.font = `${fs}px "Courier New", monospace`
-    const t = clean(m.barcodeText, true, false)
+    const t = clean(m.barcodeLabel || m.barcodeText, true, false)
     c.fillText(t, Math.max(pad, (W - c.measureText(t).width) / 2), y + 66)
   }
   return new Promise((ok, ko) => cv.toBlob((b) => (b ? ok(b) : ko(new Error('Image impossible à créer.'))), 'image/png'))
@@ -162,7 +162,7 @@ export async function shareReceipt(m, opts = {}) {
   const blob = await receiptPng(m, opts)
   const name = `recu-${String(m.number || 'vente').replace(/[^\w-]+/g, '_')}.png`
   const file = new File([blob], name, { type: 'image/png' })
-  if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: m.docTitle || 'Reçu' }); return 'partagé' }
+  if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: m.docTitle || 'Reçu', ...(opts.text ? { text: opts.text } : {}) }); return 'partagé' }
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove()
   setTimeout(() => URL.revokeObjectURL(url), 4000)

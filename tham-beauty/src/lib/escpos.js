@@ -100,7 +100,7 @@ export function receiptToEscpos(m, o = {}) {
     for (const p of m.payments) for (const r of wrap(p, cols)) line(r)
   }
   if (m.note) { sep(); for (const r of wrap(m.note, cols)) line(r) }
-  if (o.barcode && o.barcode.length) { line(''); align(1); for (let i = 0; i < o.barcode.length; i++) b.push(o.barcode[i]); if (m.barcodeText) line(clean(m.barcodeText, true)); align(0) } // code-barres du numéro de vente
+  if (o.barcode && o.barcode.length) { line(''); align(1); for (let i = 0; i < o.barcode.length; i++) b.push(o.barcode[i]); if (m.barcodeLabel || m.barcodeText) line(clean(m.barcodeLabel || m.barcodeText, true)); align(0) } // code-barres du numéro de vente
   if (m.footer) { line(''); align(1); for (const r of wrap(m.footer, cols)) line(r); align(0) }
   for (let i = 0; i < (o.feed ?? 3); i++) line('')
   if (o.cut) raw(GS, 0x56, 66, 0) // coupe partielle (si l'imprimante a un couteau)

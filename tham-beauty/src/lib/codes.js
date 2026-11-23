@@ -6,9 +6,17 @@ const C128 = ['212222','222122','222221','121223','121322','131222','122213','12
 export const code128Clean = (text) => String(text ?? '').replace(/[^\x20-\x7e]/g, '')
 
 // Retourne la suite des largeurs de modules (barre, espace, barre, …) — la première est toujours une barre.
+// Un code fait uniquement de chiffres (nombre pair) utilise le jeu C : 2 chiffres par symbole → barres 2 fois plus larges, bien plus faciles à scanner.
 export function code128Widths(text) {
   const s = code128Clean(text)
   if (!s) return []
+  if (/^\d{4,}$/.test(s) && s.length % 2 === 0) {
+    const codes = [105] // START C
+    let sum = 105
+    for (let i = 0; i < s.length; i += 2) { const v = Number(s.slice(i, i + 2)); codes.push(v); sum += v * (i / 2 + 1) }
+    codes.push(sum % 103, 106)
+    return codes.flatMap((c) => C128[c].split('').map(Number))
+  }
   const codes = [104] // START B
   let sum = 104
   for (let i = 0; i < s.length; i++) {
@@ -207,4 +215,30 @@ export function stockMatchesFor(raw, products, options) {
     }
     return normCode(o.it.sku) === c
   })
+}
+
+// ---------------------------------------------------------------- Numéro de vente ↔ code scanné
+// VTE-2026-0142 → « 20260142 » (chiffres seulement : code-barres compact et large). Les autres formats restent tels quels.
+export function saleCode(number) {
+  const m = /^[A-Za-z]+-(\d{4})-(\d+)$/.exec(String(number || '').trim())
+  if (!m) return String(number || '').trim()
+  let d = m[1] + m[2]
+  if (d.length % 2) d = m[1] + '0' + m[2]
+  return d
+}
+// Retrouve une vente à partir d'un code scanné (code compact ou numéro complet).
+export function findSaleByCode(code, sales) {
+  const c = String(code || '').trim().toUpperCase()
+  if (!c) return null
+  return (sales || []).find((x) => String(x.number || '').toUpperCase() === c || saleCode(x.number) === c) || null
+}
+// Saisie courte : « 142 » ou « 0142 » → la vente n° 142 de l'année en cours (sinon la plus récente). Retourne null s'il y a doute.
+export function findSaleByShort(text, sales, year = new Date().getFullYear()) {
+  const t = String(text || '').trim()
+  if (!/^\d{1,6}$/.test(t)) return null
+  const hits = (sales || []).filter((x) => { const m = /^[A-Za-z]+-(\d{4})-(\d+)$/.exec(String(x.number || '')); return m && Number(m[2]) === Number(t) })
+  if (!hits.length) return null
+  const cur = hits.filter((x) => String(x.number).includes(`-${year}-`))
+  const pick = cur.length ? cur : hits
+  return pick.length === 1 ? pick[0] : null
 }
