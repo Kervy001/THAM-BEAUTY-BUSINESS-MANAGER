@@ -7,7 +7,8 @@ import { useApp, DEFAULT_SETTINGS } from '../lib/store.jsx'
 import Logo from '../components/Logo.jsx'
 import { ROLES } from '../lib/perms.js'
 import { nowIso } from '../lib/util.js'
-import { Input, Notice } from '../components/ui.jsx'
+import { Notice } from '../components/ui.jsx'
+import Icon from '../components/Icon.jsx'
 
 const msg = (e) => ({
   'auth/invalid-credential': 'Identifiant ou mot de passe incorrect.',
@@ -86,36 +87,70 @@ export default function Login() {
 
   return (
     <Shell>
-      <form onSubmit={submit} className="space-y-3">
-        <h2 className="text-center font-display text-lg font-semibold">
-          {mode === 'login' ? 'Connexion' : mode === 'reset' ? 'Récupération du compte' : "Première configuration : créer l'administrateur"}
+      <form onSubmit={submit}>
+        <h2 className="text-center text-xl font-bold">
+          {mode === 'login' ? 'THAM Beauty' : mode === 'reset' ? 'Récupération du compte' : "Créer l'administrateur"}
         </h2>
-        {mode === 'setup' && <Input label="Votre nom" value={name} onChange={(e) => setName(e.target.value)} required />}
-        <Input label="Adresse e-mail" type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required />
-        {mode !== 'reset' && <Input label="Mot de passe" type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} value={pw} onChange={(e) => setPw(e.target.value)} required minLength={8} />}
-        {err && <Notice tone="red">{err}</Notice>}
-        {info && <Notice tone="blue">{info}</Notice>}
-        <button className="btn-primary w-full" disabled={busy}>{busy ? '…' : mode === 'login' ? 'Se connecter' : mode === 'reset' ? 'Envoyer le lien' : "Créer l'administrateur"}</button>
-        <div className="flex justify-between text-xs text-neutral-500">
-          {mode === 'login' ? <button type="button" className="underline" onClick={() => setMode('reset')}>Mot de passe oublié ?</button> : <button type="button" className="underline" onClick={() => setMode('login')}>← Connexion</button>}
+        <div className="mb-6 mt-0.5 text-center text-[12px] uppercase tracking-[0.2em] opacity-80">{mode === 'login' ? 'Business Manager' : mode === 'reset' ? 'Lien par e-mail' : 'Première configuration'}</div>
+        {mode === 'setup' && <Field icon="users" placeholder="Votre nom" value={name} onChange={(e) => setName(e.target.value)} required />}
+        <Field icon="mail" type="email" placeholder="Adresse e-mail" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        {mode !== 'reset' && <Field icon="lock" type="password" placeholder="Mot de passe" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} value={pw} onChange={(e) => setPw(e.target.value)} required minLength={8} />}
+        {err && <div className="mb-3 rounded-xl bg-white/90 p-2.5 text-sm font-medium text-red-700">{err}</div>}
+        {info && <div className="mb-3 rounded-xl bg-white/90 p-2.5 text-sm font-medium text-sky-800">{info}</div>}
+        <div className="mb-5 mt-1 flex justify-end text-xs">
+          {mode === 'login' ? <button type="button" className="lg-link" onClick={() => setMode('reset')}>Mot de passe oublié ?</button> : <button type="button" className="lg-link" onClick={() => setMode('login')}>← Connexion</button>}
         </div>
+        <RippleButton busy={busy}>{mode === 'login' ? 'SE CONNECTER' : mode === 'reset' ? 'ENVOYER LE LIEN' : "CRÉER L'ADMINISTRATEUR"}</RippleButton>
       </form>
     </Shell>
   )
 }
 
+// Champ à liseré : icône à gauche, œil pour afficher le mot de passe
+function Field({ icon, type = 'text', ...rest }) {
+  const [show, setShow] = useState(false)
+  const pw = type === 'password'
+  return (
+    <div className="lg-field">
+      <Icon name={icon} size={20} className="opacity-90" />
+      <input type={pw && show ? 'text' : type} aria-label={rest.placeholder} {...rest} />
+      {pw && <button type="button" onClick={() => setShow(!show)} className="opacity-90 transition hover:opacity-100" aria-label={show ? 'Masquer' : 'Afficher'}><Icon name={show ? 'eyeoff' : 'eye'} size={20} /></button>}
+    </div>
+  )
+}
+
+// Bouton principal : reflet qui passe, vague au clic, flèche qui avance, rond qui tourne pendant la connexion
+function RippleButton({ busy, children }) {
+  const [rips, setRips] = useState([])
+  function down(e) {
+    const r = e.currentTarget.getBoundingClientRect()
+    const id = Math.random()
+    setRips((x) => [...x, { id, x: e.clientX - r.left - 20, y: e.clientY - r.top - 20 }])
+    setTimeout(() => setRips((x) => x.filter((v) => v.id !== id)), 650)
+  }
+  return (
+    <button className="lg-btn" disabled={busy} onPointerDown={down}>
+      {rips.map((v) => <span key={v.id} className="lg-ripple" style={{ left: v.x, top: v.y, width: 40, height: 40 }} />)}
+      {busy ? <span className="lg-spin" /> : <>{children}<Icon name="arrow" size={18} strokeWidth={2.4} className="lg-arrow" /></>}
+    </button>
+  )
+}
+
+const FLOATERS = [['trend', 'left:7%;top:16%;--d:0s'], ['coin', 'left:14%;top:64%;--d:1.2s'], ['wallet', 'left:30%;top:84%;--d:.6s'], ['receipt', 'right:9%;top:18%;--d:1.8s'], ['package', 'right:14%;top:68%;--d:.9s'], ['chart', 'right:30%;top:7%;--d:2.4s']]
+
 function Shell({ children }) {
   return (
-    <div className="login-bg grid min-h-screen place-items-center p-4">
-      <div className="w-full max-w-sm">
-        <div className="mb-6 text-center">
-          <Logo size={150} className="float-soft mx-auto shadow-glow" />
-          <div className="mt-4 font-display text-2xl font-bold tracking-wide gold-text">THAM BEAUTY</div>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.35em] text-blush-500">Business Manager</div>
-        </div>
-        <div className="slide-up rounded-3xl bg-white p-6 shadow-pop">{children}</div>
-        <p className="mt-4 text-center text-[11px] text-neutral-500">Fonctionne aussi hors ligne après la première connexion</p>
+    <div className="relative grid min-h-screen place-items-center overflow-hidden p-4 pt-16">
+      <div className="lg-mesh" aria-hidden="true" />
+      <div aria-hidden="true" className="hidden sm:block">
+        {FLOATERS.map(([n, pos]) => <div key={n} className="lg-ico" style={Object.fromEntries(pos.split(';').map((x) => x.split(':')))}><Icon name={n} size={26} /></div>)}
       </div>
+      <div className="lg-card">
+        <div className="lg-logo"><Logo size={92} /></div>
+        {children}
+        <div className="mt-5 text-center text-[11px] tracking-[0.3em] opacity-85">GÉREZ · INVESTISSEZ · VENDEZ</div>
+      </div>
+      <p className="relative z-[2] mt-4 text-center text-[11px] text-white/80">Fonctionne aussi hors ligne après la première connexion</p>
     </div>
   )
 }
