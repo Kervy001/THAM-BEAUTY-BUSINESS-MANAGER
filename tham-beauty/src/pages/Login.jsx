@@ -88,10 +88,10 @@ export default function Login() {
   return (
     <Shell>
       <form onSubmit={submit}>
-        <h2 className="text-center text-xl font-bold">
+        <h2 className="text-center text-lg font-bold">
           {mode === 'login' ? 'THAM Beauty' : mode === 'reset' ? 'Récupération du compte' : "Créer l'administrateur"}
         </h2>
-        <div className="mb-6 mt-0.5 text-center text-[12px] uppercase tracking-[0.2em] opacity-80">{mode === 'login' ? 'Business Manager' : mode === 'reset' ? 'Lien par e-mail' : 'Première configuration'}</div>
+        <div className="mb-5 mt-0.5 text-center text-[10px] uppercase tracking-[0.22em] opacity-80">{mode === 'login' ? 'Business Manager' : mode === 'reset' ? 'Lien par e-mail' : 'Première configuration'}</div>
         {mode === 'setup' && <Field icon="users" placeholder="Votre nom" value={name} onChange={(e) => setName(e.target.value)} required />}
         <Field icon="mail" type="email" placeholder="Adresse e-mail" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required />
         {mode !== 'reset' && <Field icon="lock" type="password" placeholder="Mot de passe" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} value={pw} onChange={(e) => setPw(e.target.value)} required minLength={8} />}
@@ -112,9 +112,9 @@ function Field({ icon, type = 'text', ...rest }) {
   const pw = type === 'password'
   return (
     <div className="lg-field">
-      <Icon name={icon} size={20} className="opacity-90" />
+      <Icon name={icon} size={18} className="opacity-90" />
       <input type={pw && show ? 'text' : type} aria-label={rest.placeholder} {...rest} />
-      {pw && <button type="button" onClick={() => setShow(!show)} className="opacity-90 transition hover:opacity-100" aria-label={show ? 'Masquer' : 'Afficher'}><Icon name={show ? 'eyeoff' : 'eye'} size={20} /></button>}
+      {pw && <button type="button" onClick={() => setShow(!show)} className="opacity-90 transition hover:opacity-100" aria-label={show ? 'Masquer' : 'Afficher'}><Icon name={show ? 'eyeoff' : 'eye'} size={18} /></button>}
     </div>
   )
 }
@@ -131,7 +131,7 @@ function RippleButton({ busy, children }) {
   return (
     <button className="lg-btn" disabled={busy} onPointerDown={down}>
       {rips.map((v) => <span key={v.id} className="lg-ripple" style={{ left: v.x, top: v.y, width: 40, height: 40 }} />)}
-      {busy ? <span className="lg-spin" /> : <>{children}<Icon name="arrow" size={18} strokeWidth={2.4} className="lg-arrow" /></>}
+      {busy ? <span className="lg-spin" /> : <>{children}<Icon name="arrow" size={16} strokeWidth={2.4} className="lg-arrow" /></>}
     </button>
   )
 }
@@ -142,13 +142,13 @@ function Shell({ children }) {
   return (
     <div className="relative grid min-h-screen place-items-center overflow-hidden p-4 pt-16">
       <div className="lg-mesh" aria-hidden="true" />
-      <div aria-hidden="true" className="hidden sm:block">
-        {FLOATERS.map(([n, pos]) => <div key={n} className="lg-ico" style={Object.fromEntries(pos.split(';').map((x) => x.split(':')))}><Icon name={n} size={26} /></div>)}
+      <div aria-hidden="true">
+        {FLOATERS.map(([n, pos]) => <div key={n} className="lg-ico" style={Object.fromEntries(pos.split(';').map((x) => x.split(':')))}><Icon name={n} size={22} /></div>)}
       </div>
       <div className="lg-card">
-        <div className="lg-logo"><Logo size={92} /></div>
+        <div className="lg-logo"><Logo size={78} /></div>
         {children}
-        <div className="mt-5 text-center text-[11px] tracking-[0.3em] opacity-85">GÉREZ · INVESTISSEZ · VENDEZ</div>
+        <div className="mt-4 text-center text-[9.5px] tracking-[0.28em] opacity-85">GÉREZ · INVESTISSEZ · VENDEZ</div>
       </div>
       <p className="relative z-[2] mt-4 text-center text-[11px] text-white/80">Fonctionne aussi hors ligne après la première connexion</p>
     </div>
