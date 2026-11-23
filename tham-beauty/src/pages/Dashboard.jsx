@@ -74,7 +74,7 @@ function Bars({ data, cur }) {
     <div className="flex h-40 items-end gap-2">
       {entries.map(([d, v]) => (
         <div key={d} className="group flex h-full min-w-0 max-w-[64px] flex-1 flex-col items-center justify-end" title={`${fdate(d)} : ${fm(v, cur)}`}>
-          <div className="w-full rounded-t-lg bg-gradient-to-t from-gold-600 via-gold-400 to-gold-200 transition group-hover:from-blush-500 group-hover:to-blush-400" style={{ height: `${Math.max(5, (v / max) * 100)}%` }} />
+          <div className="w-full rounded-t-lg bg-gradient-to-t from-[#9b6bdc] to-blush-400 transition group-hover:from-[#7c4fc4] group-hover:to-blush-500 group-hover:shadow-rose" style={{ height: `${Math.max(5, (v / max) * 100)}%` }} />
           <div className="mt-1.5 text-[10px] text-neutral-400">{new Date(d).getDate()}/{new Date(d).getMonth() + 1}</div>
         </div>
       ))}
